@@ -53,6 +53,12 @@
   #setup .btns { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
   #setup button { padding:11px 18px; border-radius:10px; border:0; font:inherit; font-weight:600; cursor:pointer; background:#1d2733; color:var(--fg); }
   #setup button.primary { background:var(--accent); color:#04121c; }
+  #setup button:disabled { opacity:.4; cursor:not-allowed; }
+  .keystat { min-height:18px; margin-top:6px; font-size:13px; }
+  .keystat.ok { color:var(--ok); } .keystat.bad { color:var(--bad); }
+  #ov-key { display:none; gap:8px; flex-wrap:wrap; justify-content:center; }
+  #ov-key input { padding:12px 14px; border-radius:10px; border:1px solid #263241; background:#070b10; color:var(--fg); font:16px ui-monospace,Menlo,Consolas,monospace; width:min(80vw,320px); }
+  #ov-key button { padding:12px 18px; border-radius:10px; border:0; background:var(--accent); color:#04121c; font:inherit; font-weight:600; cursor:pointer; }
   @media (max-width:560px) { #setup .row { grid-template-columns:1fr; } #local { width:34vw; right:12px; bottom:12px; } }
 </style>
 </head>
@@ -65,7 +71,7 @@
     <p class="sub">Configure each site once, then bookmark the generated link on that site's kiosk machine. Both sites must use the same room name and key.</p>
     <div class="row">
       <div><label for="s-room">Room name (shared by both sites)</label><input id="s-room" value="portal"></div>
-      <div><label for="s-key">Room key (if the server sets ROOM_KEY)</label><input id="s-key" placeholder="optional"></div>
+      <div><label for="s-key">Room key</label><input id="s-key" placeholder="paste the key here" autocomplete="off" spellcheck="false"><div id="s-key-status" class="keystat"></div></div>
     </div>
     <div class="row">
       <div><label for="s-label">This site's name (shown to the other side)</label><input id="s-label" placeholder="e.g. Boston Campus"></div>
@@ -101,7 +107,7 @@
   <video id="local" autoplay muted playsinline></video>
   <div id="label"><span id="dot"></span><span id="label-text">Connecting…</span></div>
   <pre id="stats"></pre>
-  <div id="overlay"><div class="ring"></div><h1 id="ov-title">Starting portal…</h1><p id="ov-sub"></p></div>
+  <div id="overlay"><div class="ring"></div><h1 id="ov-title">Starting portal…</h1><p id="ov-sub"></p><form id="ov-key"><input id="ov-key-input" placeholder="Room key" autocomplete="off" spellcheck="false"><button>Try again</button></form></div>
   <div id="tap">Click anywhere to start audio</div>
   <div id="toolbar">
     <button id="b-mic" title="Mute microphone (M)">Mic</button>
