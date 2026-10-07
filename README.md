@@ -58,6 +58,7 @@ Allow camera and mic once ("Remember this decision") and turn off OS sleep and s
 | **S** | Show/hide connection stats |
 | **M** | Mute/unmute mic |
 | **V** | Camera on/off |
+| **H** | Show/hide your own video (self-view) |
 | **F** or double-click | Fullscreen |
 
 Moving the mouse shows a toolbar. The cursor hides after 3 s.
@@ -75,7 +76,7 @@ Moving the mouse shows a toolbar. The cursor hides after 3 s.
 | `codec` | auto | `VP8`, `H264`, `VP9`, `AV1` |
 | `jb` | `0` | Jitter-buffer target in ms. Raise to 50–150 if video stutters on a lossy link (smoother but more delay) |
 | `cam` / `mic` / `spk` | default | Device IDs (the setup page fills these) |
-| `self=0` | — | Hide self-view |
+| `self=0` | — | Start with self-view hidden (toggle any time with **H** or the toolbar) |
 | `fit=contain` | — | Letterbox instead of crop-to-fill |
 | `stats=1` | — | Show stats on start |
 
