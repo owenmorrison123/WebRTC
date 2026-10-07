@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Campus Portal</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%2338bdf8' stroke-width='4'/%3E%3C/svg%3E">
+<style>
+  :root { --bg:#05070a; --fg:#e8edf2; --muted:#8a96a3; --accent:#38bdf8; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --panel:rgba(10,14,20,.78); }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; overflow:hidden; }
+  body.hide-cursor, body.hide-cursor * { cursor:none !important; }
+
+  /* ---------- portal ---------- */
+  #portal { position:fixed; inset:0; display:none; }
+  #remote { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#000; }
+  body.fit-contain #remote { object-fit:contain; }
+  #local { position:absolute; right:20px; bottom:20px; width:min(22vw,320px); aspect-ratio:16/9; object-fit:cover; border-radius:10px;
+           transform:scaleX(-1); box-shadow:0 4px 24px rgba(0,0,0,.6); border:2px solid rgba(255,255,255,.15); background:#111; transition:opacity .3s; }
+  body.no-self #local { display:none; }
+  #label { position:absolute; left:20px; top:16px; display:flex; align-items:center; gap:10px; padding:6px 12px; border-radius:999px; background:var(--panel); font-weight:600; letter-spacing:.02em; }
+  #dot { width:10px; height:10px; border-radius:50%; background:var(--warn); box-shadow:0 0 10px currentColor; }
+  #dot.ok { background:var(--ok); } #dot.bad { background:var(--bad); }
+  #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; background:radial-gradient(ellipse at center,#0b1520 0%,#05070a 70%); text-align:center; padding:24px; transition:opacity .6s; }
+  #overlay.hidden { opacity:0; pointer-events:none; }
+  #overlay h1 { margin:0; font-size:clamp(28px,4vw,56px); font-weight:300; }
+  #overlay p { margin:0; color:var(--muted); font-size:clamp(15px,1.6vw,22px); }
+  .ring { width:90px; height:90px; border-radius:50%; border:3px solid rgba(56,189,248,.2); border-top-color:var(--accent); animation:spin 1.4s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #tap { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); font-size:24px; z-index:5; cursor:pointer; }
+  #toolbar { position:absolute; left:50%; bottom:20px; transform:translateX(-50%); display:flex; gap:8px; padding:8px; border-radius:14px; background:var(--panel); opacity:0; transition:opacity .3s; z-index:4; }
+  body.show-ui #toolbar { opacity:1; }
+  #toolbar button { background:rgba(255,255,255,.08); color:var(--fg); border:0; border-radius:10px; padding:10px 14px; font:inherit; cursor:pointer; }
+  #toolbar button:hover { background:rgba(255,255,255,.16); }
+  #toolbar button.off { background:var(--bad); }
+  #stats { position:absolute; right:20px; top:16px; min-width:280px; padding:12px 14px; border-radius:12px; background:var(--panel); font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; display:none; white-space:pre; z-index:3; }
+  body.show-stats #stats { display:block; }
+  #stats b { color:var(--accent); font-weight:600; }
+
+  /* ---------- setup ---------- */
+  #setup { display:none; height:100%; overflow:auto; padding:32px 16px; }
+  #setup .card { max-width:640px; margin:0 auto; background:#0d131b; border:1px solid #1d2733; border-radius:16px; padding:28px; }
+  #setup h1 { margin:0 0 4px; font-weight:600; }
+  #setup .sub { color:var(--muted); margin:0 0 22px; }
+  #setup label { display:block; margin:14px 0 6px; font-size:13px; color:var(--muted); }
+  #setup input, #setup select { width:100%; padding:10px 12px; border-radius:10px; border:1px solid #263241; background:#070b10; color:var(--fg); font:inherit; }
+  #setup .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  #setup .checks { display:flex; flex-wrap:wrap; gap:16px; margin-top:16px; }
+  #setup .checks label { display:flex; align-items:center; gap:6px; margin:0; color:var(--fg); }
+  #setup .checks input { width:auto; }
+  #setup video { width:100%; aspect-ratio:16/9; background:#000; border-radius:10px; margin-top:18px; transform:scaleX(-1); object-fit:cover; }
+  #setup .url { margin-top:18px; padding:12px; border-radius:10px; background:#070b10; border:1px dashed #263241; word-break:break-all; font:13px ui-monospace,Menlo,Consolas,monospace; }
+  #setup .btns { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  #setup button { padding:11px 18px; border-radius:10px; border:0; font:inherit; font-weight:600; cursor:pointer; background:#1d2733; color:var(--fg); }
+  #setup button.primary { background:var(--accent); color:#04121c; }
+  @media (max-width:560px) { #setup .row { grid-template-columns:1fr; } #local { width:34vw; right:12px; bottom:12px; } }
+</style>
+</head>
+<body>
+
+<!-- Setup screen: shown when no ?room= is in the URL -->
+<section id="setup">
+  <div class="card">
+    <h1>Campus Portal setup</h1>
+    <p class="sub">Configure each site once, then bookmark the generated link on that site's kiosk machine. Both sites must use the same room name and key.</p>
+    <div class="row">
+      <div><label for="s-room">Room name (shared by both sites)</label><input id="s-room" value="portal"></div>
+      <div><label for="s-key">Room key (if the server sets ROOM_KEY)</label><input id="s-key" placeholder="optional"></div>
+    </div>
+    <div class="row">
+      <div><label for="s-label">This site's name (shown to the other side)</label><input id="s-label" placeholder="e.g. Boston Campus"></div>
+      <div><label for="s-res">Video quality</label>
+        <select id="s-res"><option value="720">720p · 30 fps (recommended)</option><option value="1080">1080p · 30 fps</option><option value="540">540p · 30 fps (weak links)</option></select></div>
+    </div>
+    <div class="row">
+      <div><label for="s-cam">Camera</label><select id="s-cam"><option value="">Default</option></select></div>
+      <div><label for="s-mic">Microphone</label><select id="s-mic"><option value="">Default</option></select></div>
+    </div>
+    <div class="row">
+      <div><label for="s-spk">Speaker</label><select id="s-spk"><option value="">Default</option></select></div>
+      <div><label for="s-codec">Video codec</label>
+        <select id="s-codec"><option value="">Auto</option><option>VP8</option><option>H264</option><option>VP9</option><option>AV1</option></select></div>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="s-self" checked> Show self-view</label>
+      <label><input type="checkbox" id="s-contain"> Letterbox (don't crop)</label>
+      <label><input type="checkbox" id="s-stats"> Show stats on start</label>
+    </div>
+    <video id="s-preview" autoplay muted playsinline></video>
+    <div class="url" id="s-url"></div>
+    <div class="btns">
+      <button class="primary" id="s-go">Open portal</button>
+      <button id="s-copy">Copy link</button>
+    </div>
+  </div>
+</section>
+
+<!-- Portal -->
+<section id="portal">
+  <video id="remote" autoplay playsinline></video>
+  <video id="local" autoplay muted playsinline></video>
+  <div id="label"><span id="dot"></span><span id="label-text">Connecting…</span></div>
+  <pre id="stats"></pre>
+  <div id="overlay"><div class="ring"></div><h1 id="ov-title">Starting portal…</h1><p id="ov-sub"></p></div>
+  <div id="tap">Click anywhere to start audio</div>
+  <div id="toolbar">
+    <button id="b-mic" title="Mute microphone (M)">Mic</button>
+    <button id="b-cam" title="Turn camera off (V)">Camera</button>
+    <button id="b-stats" title="Connection stats (S)">Stats</button>
+    <button id="b-fs" title="Fullscreen (F)">Fullscreen</button>
+  </div>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>
