@@ -33,7 +33,7 @@ async function setup() {
   const build = () => {
     const p = new URLSearchParams();
     p.set('room', f('s-room').value.trim() || 'portal');
-    if (f('s-key').value) p.set('key', f('s-key').value);
+    if (f('s-key').value.trim()) p.set('key', f('s-key').value.trim());
     if (f('s-label').value) p.set('label', f('s-label').value);
     p.set('res', f('s-res').value);
     if (f('s-cam').value) p.set('cam', f('s-cam').value);
@@ -52,6 +52,23 @@ async function setup() {
     stream?.getTracks().forEach((t) => t.stop());
     try { stream = await navigator.mediaDevices.getUserMedia({ video: f('s-cam').value ? { deviceId: { exact: f('s-cam').value } } : true }); f('s-preview').srcObject = stream; } catch {}
   });
+  // Check the room key against the server as it's typed, so a typo shows up here, not on the kiosk.
+  let keyTimer;
+  const checkKey = () => {
+    clearTimeout(keyTimer);
+    keyTimer = setTimeout(async () => {
+      const st = f('s-key-status');
+      try {
+        const r = await fetch(`/config?key=${encodeURIComponent(f('s-key').value.trim())}`, { cache: 'no-store' });
+        const ok = r.status !== 403;
+        st.className = 'keystat ' + (ok ? 'ok' : 'bad');
+        st.textContent = ok ? '✓ Key accepted' : (f('s-key').value.trim() ? '✗ Key doesn’t match the server. Check for typos (1 vs l, 0 vs O).' : 'This server needs a room key.');
+        f('s-go').disabled = !ok;
+      } catch { st.textContent = ''; }
+    }, 300);
+  };
+  f('s-key').addEventListener('input', checkKey);
+  checkKey();
   build();
   f('s-go').onclick = () => { stream?.getTracks().forEach((t) => t.stop()); location.href = build(); };
   f('s-copy').onclick = async () => { await navigator.clipboard.writeText(build()); f('s-copy').textContent = 'Copied'; setTimeout(() => (f('s-copy').textContent = 'Copy link'), 1500); };
@@ -64,8 +81,8 @@ async function portal() {
   $('portal').style.display = 'block';
 
   const cfg = {
-    room: Q.get('room'),
-    key: Q.get('key') || '',
+    room: Q.get('room').trim(),
+    key: (Q.get('key') || '').trim(),
     label: Q.get('label') || '',
     preset: PRESETS[Q.get('res')] || PRESETS[720],
     fps: Number(Q.get('fps') || 30),
@@ -91,11 +108,22 @@ async function portal() {
     $('overlay').classList.toggle('hidden', !show);
   };
   const setDot = (cls, text) => { $('dot').className = cls; $('label-text').textContent = text; };
+  const wrongKey = () => {
+    status('Wrong room key', cfg.key ? 'The key in this link doesn’t match the server. Enter the correct key:' : 'This portal needs a room key. Enter it below:');
+    document.querySelector('#overlay .ring').style.display = 'none';
+    const form = $('ov-key'); form.style.display = 'flex';
+    $('ov-key-input').value = cfg.key; $('ov-key-input').focus();
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const u = new URL(location.href); u.searchParams.set('key', $('ov-key-input').value.trim());
+      location.replace(u);
+    };
+  };
 
   // ---------- ICE config ----------
   try {
     const r = await fetch(`/config?key=${encodeURIComponent(cfg.key)}`, { cache: 'no-store' });
-    if (r.status === 403) return status('Wrong room key', 'Check the key= value in this URL.');
+    if (r.status === 403) return wrongKey();
     iceServers = (await r.json()).iceServers;
   } catch (e) { console.warn('config fetch failed, using default STUN', e); }
 
@@ -157,7 +185,7 @@ async function portal() {
     ws.onopen = () => { wsBackoff = 500; };
     ws.onmessage = (e) => onWsMessage(JSON.parse(e.data));
     ws.onclose = (e) => {
-      if (e.code === 4001) return status('Wrong room key', 'Check the key= value in this URL.');
+      if (e.code === 4001) return wrongKey();
       if (e.code === 4002) status('Room is full', 'Two portals are already connected in this room. Retrying…');
       if (!pc || pc.connectionState !== 'connected') setDot('bad', 'Signaling offline — reconnecting…');
       setTimeout(connectWs, wsBackoff);
