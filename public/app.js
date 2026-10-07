@@ -376,11 +376,24 @@ async function portal() {
   const toggleMic = () => { micOn = !micOn; applyMuteState(); };
   const toggleCam = () => { camOn = !camOn; applyMuteState(); };
   const toggleStats = () => document.body.classList.toggle('show-stats');
+  // Self-view on/off during a call. Also updates the address bar so a reload or bookmark keeps the choice.
+  const applySelf = () => {
+    const hidden = document.body.classList.contains('no-self');
+    $('b-self').textContent = hidden ? 'Show self-view' : 'Hide self-view';
+  };
+  const toggleSelf = () => {
+    const hidden = document.body.classList.toggle('no-self');
+    applySelf();
+    const u = new URL(location.href);
+    if (hidden) u.searchParams.set('self', '0'); else u.searchParams.delete('self');
+    history.replaceState(null, '', u);
+  };
+  applySelf();
   const toggleFs = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {});
-  $('b-mic').onclick = toggleMic; $('b-cam').onclick = toggleCam; $('b-stats').onclick = toggleStats; $('b-fs').onclick = toggleFs;
+  $('b-mic').onclick = toggleMic; $('b-cam').onclick = toggleCam; $('b-self').onclick = toggleSelf; $('b-stats').onclick = toggleStats; $('b-fs').onclick = toggleFs;
   document.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
-    if (k === 'm') toggleMic(); else if (k === 'v') toggleCam(); else if (k === 's') toggleStats(); else if (k === 'f') toggleFs();
+    if (k === 'm') toggleMic(); else if (k === 'v') toggleCam(); else if (k === 'h') toggleSelf(); else if (k === 's') toggleStats(); else if (k === 'f') toggleFs();
   });
   remoteVideo.addEventListener('dblclick', toggleFs);
 
