@@ -9,7 +9,7 @@ const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 
 const PORT = Number(process.env.PORT || 8080);
-const ROOM_KEY = process.env.ROOM_KEY || '';          // shared secret; empty = no check
+const ROOM_KEY = (process.env.ROOM_KEY || '').trim();          // shared secret; empty = no check
 const GRACE_MS = Number(process.env.GRACE_MS || 15000); // keep a dropped peer's slot this long
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
@@ -36,10 +36,12 @@ function iceServers() {
 // ---------- static files ----------
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
 
+const keyOk = (k) => !ROOM_KEY || (k || '').trim() === ROOM_KEY;
+
 function handler(req, res) {
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/config') {
-    if (ROOM_KEY && url.searchParams.get('key') !== ROOM_KEY) { res.writeHead(403); return res.end('forbidden'); }
+    if (!keyOk(url.searchParams.get('key'))) { res.writeHead(403); return res.end('forbidden'); }
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     return res.end(JSON.stringify({ iceServers: iceServers() }));
   }
@@ -79,11 +81,11 @@ function removePeer(roomName, id) {
 
 wss.on('connection', (ws, req) => {
   const url = new URL(req.url, 'http://x');
-  const roomName = (url.searchParams.get('room') || 'portal').slice(0, 64);
+  const roomName = ((url.searchParams.get('room') || '').trim() || 'portal').slice(0, 64);
   const id = (url.searchParams.get('id') || '').slice(0, 64);
   const label = (url.searchParams.get('label') || '').slice(0, 64);
 
-  if (ROOM_KEY && url.searchParams.get('key') !== ROOM_KEY) { send(ws, { type: 'error', reason: 'bad-key' }); return ws.close(4001, 'bad key'); }
+  if (!keyOk(url.searchParams.get('key'))) { send(ws, { type: 'error', reason: 'bad-key' }); return ws.close(4001, 'bad key'); }
   if (!id) return ws.close(4000, 'missing id');
 
   if (!rooms.has(roomName)) rooms.set(roomName, new Map());
