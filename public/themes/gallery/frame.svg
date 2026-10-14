@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+  <!-- Picture-frame overlay. The window (transparent) starts 90 units in from every edge,
+       which is 8.33% of the 1080 height: that is why theme.json uses "inset": 8 (just under). -->
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6e2a8"/><stop offset=".35" stop-color="#c99a45"/>
+      <stop offset=".6" stop-color="#8a6326"/><stop offset="1" stop-color="#e8c77a"/>
+    </linearGradient>
+    <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity=".0"/><stop offset="1" stop-color="#000" stop-opacity=".35"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#gold)" fill-rule="evenodd" d="M0 0H1920V1080H0Z M90 90V990H1830V90Z"/>
+  <path fill="url(#shade)" fill-rule="evenodd" d="M0 0H1920V1080H0Z M90 90V990H1830V90Z"/>
+  <rect x="22" y="22" width="1876" height="1036" fill="none" stroke="#5c4119" stroke-width="6"/>
+  <rect x="52" y="52" width="1816" height="976" fill="none" stroke="#fff3c9" stroke-opacity=".55" stroke-width="3"/>
+  <rect x="84" y="84" width="1752" height="912" fill="none" stroke="#3d2a0e" stroke-width="12"/>
+</svg>
