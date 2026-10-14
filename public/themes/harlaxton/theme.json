@@ -1,0 +1,26 @@
+{
+  "name": "Harlaxton Manor",
+  "order": 1,
+  "shape": "arch",
+  "inset": 3.5,
+  "radius": 14,
+  "archRise": 0.42,
+  "border": {
+    "width": 22,
+    "gradient": "repeating-linear-gradient(90deg, rgba(110,84,44,0.28) 0 2px, transparent 2px 140px), repeating-linear-gradient(0deg, rgba(110,84,44,0.32) 0 2px, transparent 2px 46px), linear-gradient(165deg, #f0e3c2 0%, #dcc394 32%, #bf9f68 62%, #957947 100%)",
+    "innerWidth": 3,
+    "innerColor": "rgba(60,44,20,0.65)"
+  },
+  "glow": { "color": "rgba(255,214,140,0.26)", "size": 80 },
+  "background": "radial-gradient(ellipse at 50% 22%, #2e261a 0%, #15100a 55%, #0b0805 100%)",
+  "accent": "#e6c47e",
+  "logo": {
+    "text": "HARLAXTON COLLEGE",
+    "file": null,
+    "position": "bottom-left",
+    "size": 4.5,
+    "plate": "rgba(24,17,8,0.62)",
+    "color": "#f2e2bb"
+  },
+  "selfView": { "radius": 12, "border": "#d6bd8c" }
+}
