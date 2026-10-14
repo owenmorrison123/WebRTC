@@ -38,6 +38,15 @@
   #stats b { color:var(--accent); font-weight:600; }
   #toast { position:absolute; left:50%; top:24px; transform:translateX(-50%); padding:10px 16px; border-radius:10px; background:var(--panel); font-weight:600; opacity:0; transition:opacity .3s; pointer-events:none; z-index:6; }
   #toast.show { opacity:1; }
+  #settings { position:absolute; right:20px; bottom:90px; width:min(340px, calc(100vw - 32px)); max-height:calc(100vh - 120px); overflow:auto; padding:16px; border-radius:14px; background:rgba(10,14,20,.94); border:1px solid #263241; z-index:7; display:none; }
+  body.show-settings #settings { display:block; }
+  #settings h3 { margin:0 0 8px; font-size:16px; }
+  #settings label { display:block; margin-top:10px; font-size:12px; color:var(--muted); }
+  #settings select { display:block; width:100%; margin-top:4px; padding:8px 10px; border-radius:8px; border:1px solid #263241; background:#070b10; color:var(--fg); font:14px system-ui,sans-serif; }
+  #settings .prow { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  #settings #p-actual { margin:12px 0 0; font-size:12px; color:var(--muted); min-height:16px; }
+  #settings button { margin-top:12px; width:100%; padding:10px; border:0; border-radius:10px; background:var(--accent); color:#04121c; font:inherit; font-weight:600; cursor:pointer; }
+  body.show-settings, body.show-settings * { cursor:auto !important; }
 
   /* ---------- setup ---------- */
   #setup { display:none; height:100%; overflow:auto; padding:32px 16px; }
@@ -78,11 +87,17 @@
     <div class="row">
       <div><label for="s-label">This site's name (shown to the other side)</label><input id="s-label" placeholder="e.g. Boston Campus"></div>
       <div><label for="s-res">Video quality</label>
-        <select id="s-res"><option value="720">720p · 30 fps (recommended)</option><option value="1080">1080p · 30 fps</option><option value="540">540p · 30 fps (weak links)</option></select></div>
+        <select id="s-res"><option value="720">720p (recommended)</option><option value="1080">1080p (sharpest)</option><option value="540">540p (weak links)</option></select></div>
     </div>
     <div class="row">
       <div><label for="s-cam">Camera</label><select id="s-cam"><option value="">Default</option></select></div>
       <div><label for="s-mic">Microphone</label><select id="s-mic"><option value="">Default</option></select></div>
+    </div>
+    <div class="row">
+      <div><label for="s-fps">Frame rate</label>
+        <select id="s-fps"><option value="30">30 fps (recommended)</option><option value="60">60 fps (smoothest; camera must support it)</option><option value="24">24 fps</option><option value="15">15 fps (weak links)</option></select></div>
+      <div><label for="s-bitrate">Max bitrate</label>
+        <select id="s-bitrate"><option value="">Auto (by quality)</option><option value="1500">1.5 Mbps</option><option value="3000">3 Mbps</option><option value="5000">5 Mbps</option><option value="8000">8 Mbps</option><option value="12000">12 Mbps</option></select></div>
     </div>
     <div class="row">
       <div><label for="s-spk">Speaker</label><select id="s-spk"><option value="">Default</option></select></div>
@@ -112,10 +127,24 @@
   <div id="overlay"><div class="ring"></div><h1 id="ov-title">Starting portal…</h1><p id="ov-sub"></p><form id="ov-key"><input id="ov-key-input" placeholder="Room key" autocomplete="off" spellcheck="false"><button>Try again</button></form></div>
   <div id="tap">Click anywhere to start audio</div>
   <div id="toast"></div>
+  <div id="settings">
+    <h3>Settings</h3>
+    <label>Camera<select id="p-cam"></select></label>
+    <label>Microphone<select id="p-mic"></select></label>
+    <label>Speaker<select id="p-spk"></select></label>
+    <div class="prow">
+      <label>Resolution<select id="p-res"><option value="540">540p</option><option value="720">720p</option><option value="1080">1080p</option></select></label>
+      <label>Frame rate<select id="p-fps"><option value="15">15 fps</option><option value="24">24 fps</option><option value="30">30 fps</option><option value="60">60 fps</option></select></label>
+    </div>
+    <label>Max bitrate<select id="p-bitrate"><option value="0">Auto</option><option value="1500">1.5 Mbps</option><option value="3000">3 Mbps</option><option value="5000">5 Mbps</option><option value="8000">8 Mbps</option><option value="12000">12 Mbps</option></select></label>
+    <p id="p-actual"></p>
+    <button id="p-close">Done</button>
+  </div>
   <div id="toolbar">
     <button id="b-mic" title="Mute microphone (M)">Mic</button>
     <button id="b-cam" title="Turn camera off (V)">Camera</button>
     <button id="b-self" title="Show/hide your own video (H)">Hide self-view</button>
+    <button id="b-settings" title="Camera, mic, speaker and quality (D)">Settings</button>
     <button id="b-stats" title="Connection stats (S)">Stats</button>
     <button id="b-fs" title="Fullscreen (F)">Fullscreen</button>
   </div>
