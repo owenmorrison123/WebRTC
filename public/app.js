@@ -4,11 +4,14 @@
 const $ = (id) => document.getElementById(id);
 const Q = new URLSearchParams(location.search);
 
+// Bitrate caps are for 30 fps; 60 fps gets 1.6× (see autoKbps). The encoder still adapts downwards
+// to what the network can carry; these are ceilings, not targets.
 const PRESETS = {
-  540:  { w: 960,  h: 540,  kbps: 1200 },
-  720:  { w: 1280, h: 720,  kbps: 2500 },
-  1080: { w: 1920, h: 1080, kbps: 4500 },
+  540:  { w: 960,  h: 540,  kbps: 1500 },
+  720:  { w: 1280, h: 720,  kbps: 3000 },
+  1080: { w: 1920, h: 1080, kbps: 6000 },
 };
+const autoKbps = (preset, fps) => Math.round((preset.kbps * (fps > 30 ? 1.6 : fps < 24 ? 0.6 : 1)) / 100) * 100;
 
 if (!Q.get('room')) setup(); else portal();
 
@@ -36,6 +39,8 @@ async function setup() {
     if (f('s-key').value.trim()) p.set('key', f('s-key').value.trim());
     if (f('s-label').value) p.set('label', f('s-label').value);
     p.set('res', f('s-res').value);
+    if (f('s-fps').value !== '30') p.set('fps', f('s-fps').value);
+    if (f('s-bitrate').value) p.set('bitrate', f('s-bitrate').value);
     if (f('s-cam').value) p.set('cam', f('s-cam').value);
     if (f('s-mic').value) p.set('mic', f('s-mic').value);
     if (f('s-spk').value) p.set('spk', f('s-spk').value);
@@ -84,6 +89,7 @@ async function portal() {
     room: Q.get('room').trim(),
     key: (Q.get('key') || '').trim(),
     label: Q.get('label') || '',
+    res: PRESETS[Q.get('res')] ? Q.get('res') : '720',
     preset: PRESETS[Q.get('res')] || PRESETS[720],
     fps: Number(Q.get('fps') || 30),
     kbps: Number(Q.get('bitrate') || 0),
@@ -94,7 +100,8 @@ async function portal() {
     relay: Q.get('relay') === '1',         // force traffic through the TURN relay (for testing)
     cam: Q.get('cam'), mic: Q.get('mic'), spk: Q.get('spk'),
   };
-  cfg.kbps = cfg.kbps || cfg.preset.kbps;
+  cfg.kbpsAuto = !cfg.kbps;
+  cfg.kbps = cfg.kbps || autoKbps(cfg.preset, cfg.fps);
   if (Q.get('self') === '0') document.body.classList.add('no-self');
   if (Q.get('fit') === 'contain') document.body.classList.add('fit-contain');
   if (Q.get('stats') === '1') document.body.classList.add('show-stats');
@@ -142,23 +149,23 @@ async function portal() {
   }, 6 * 3600 * 1000);
 
   // ---------- Local media ----------
+  const videoShape = () => ({ width: { ideal: cfg.preset.w }, height: { ideal: cfg.preset.h }, frameRate: { ideal: cfg.fps, max: cfg.fps } });
+  const videoConstraints = (exact) => ({ ...videoShape(), ...(cfg.cam ? { deviceId: exact ? { exact: cfg.cam } : { ideal: cfg.cam } } : {}) });
+  const audioConstraints = (exact) => ({
+    echoCancellation: true, noiseSuppression: true, autoGainControl: true,
+    channelCount: 1, sampleRate: 48000,
+    ...(cfg.mic ? { deviceId: exact ? { exact: cfg.mic } : { ideal: cfg.mic } } : {}),
+  });
+  function prepTrack(t) {
+    t.contentHint = t.kind === 'video' ? 'motion' : 'speech';
+    t.addEventListener('ended', onTrackEnded);
+    return t;
+  }
   async function getMedia() {
-    const video = {
-      width: { ideal: cfg.preset.w }, height: { ideal: cfg.preset.h },
-      frameRate: { ideal: cfg.fps, max: cfg.fps },
-      ...(cfg.cam ? { deviceId: { ideal: cfg.cam } } : {}),
-    };
-    const audio = {
-      echoCancellation: true, noiseSuppression: true, autoGainControl: true,
-      channelCount: 1, sampleRate: 48000,
-      ...(cfg.mic ? { deviceId: { ideal: cfg.mic } } : {}),
-    };
     for (;;) {
       try {
-        const s = await navigator.mediaDevices.getUserMedia({ video, audio });
-        const vt = s.getVideoTracks()[0]; if (vt) vt.contentHint = 'motion';
-        const at = s.getAudioTracks()[0]; if (at) at.contentHint = 'speech';
-        s.getTracks().forEach((t) => t.addEventListener('ended', onTrackEnded));
+        const s = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(false), audio: audioConstraints(false) });
+        s.getTracks().forEach(prepTrack);
         return s;
       } catch (e) {
         status('Camera or microphone unavailable', `${e.name}: ${e.message} — retrying…`);
@@ -183,6 +190,71 @@ async function portal() {
     }
     if (pc?.connectionState === 'connected') status('', '', false);
     reacquiring = false;
+  }
+
+  // ---------- Switching devices / quality during a call ----------
+  // A new track is swapped into the existing sender with replaceTrack, so the call never renegotiates
+  // or drops: the other site just sees the new camera (or hears the new mic) a moment later.
+  async function swapTrack(kind, getTrack) {
+    const old = kind === 'video' ? localStream.getVideoTracks()[0] : localStream.getAudioTracks()[0];
+    let nt;
+    try { nt = await getTrack(); }
+    catch (e) {
+      // Some cameras can only be opened once: release the old one and try again.
+      if (!old || !['NotReadableError', 'AbortError', 'TrackStartError'].includes(e.name)) throw e;
+      old.stop();
+      try { nt = await getTrack(); }
+      catch (e2) {
+        // Couldn't open the new device either: get any working device back so the feed doesn't die.
+        nt = (await navigator.mediaDevices.getUserMedia(kind === 'video' ? { video: videoShape() } : { audio: true }))[kind === 'video' ? 'getVideoTracks' : 'getAudioTracks']()[0];
+        setTimeout(() => toast(`Couldn’t open that ${kind === 'video' ? 'camera' : 'microphone'} (${e2.name})`), 50);
+      }
+    }
+    prepTrack(nt);
+    nt.enabled = kind === 'video' ? camOn : micOn;
+    const sender = pc?.getSenders().find((x) => x.track === old || x.track?.kind === kind);
+    if (sender) await sender.replaceTrack(nt);
+    if (old) { localStream.removeTrack(old); old.stop(); }
+    localStream.addTrack(nt);
+    localVideo.srcObject = localStream;
+    return nt;
+  }
+  const setParam = (k, v) => {
+    const u = new URL(location.href);
+    if (v == null || v === '') u.searchParams.delete(k); else u.searchParams.set(k, v);
+    history.replaceState(null, '', u);
+  };
+  async function switchCamera(id) {
+    cfg.cam = id || null; setParam('cam', id);
+    await swapTrack('video', async () => (await navigator.mediaDevices.getUserMedia({ video: videoConstraints(true) })).getVideoTracks()[0]);
+    tuneSenders(); showActual();
+    toast('Camera switched');
+  }
+  async function switchMic(id) {
+    cfg.mic = id || null; setParam('mic', id);
+    await swapTrack('audio', async () => (await navigator.mediaDevices.getUserMedia({ audio: audioConstraints(true) })).getAudioTracks()[0]);
+    toast('Microphone switched');
+  }
+  async function switchSpeaker(id) {
+    cfg.spk = id || null; setParam('spk', id);
+    if (remoteVideo.setSinkId) await remoteVideo.setSinkId(id || '');
+    toast('Speaker switched');
+  }
+  async function setQuality({ res = cfg.res, fps = cfg.fps, kbps = cfg.kbpsAuto ? 0 : cfg.kbps }) {
+    cfg.res = String(res); cfg.preset = PRESETS[cfg.res]; cfg.fps = Number(fps);
+    cfg.kbpsAuto = !Number(kbps); cfg.kbps = Number(kbps) || autoKbps(cfg.preset, cfg.fps);
+    setParam('res', cfg.res); setParam('fps', cfg.fps === 30 ? null : cfg.fps); setParam('bitrate', cfg.kbpsAuto ? null : cfg.kbps);
+    const vt = localStream.getVideoTracks()[0];
+    try { await vt.applyConstraints(videoShape()); }
+    catch { await swapTrack('video', async () => (await navigator.mediaDevices.getUserMedia({ video: videoConstraints(true) })).getVideoTracks()[0]); }
+    await tuneSenders(); showActual();
+    toast(`${cfg.res}p · ${cfg.fps} fps · up to ${(cfg.kbps / 1000).toFixed(1)} Mbps`);
+  }
+  // What the camera actually delivers (cameras often can't do every size/rate asked for).
+  function showActual() {
+    const st = localStream.getVideoTracks()[0]?.getSettings() || {};
+    const el = $('p-actual');
+    if (el) el.textContent = st.width ? `Camera is sending ${st.width}×${st.height} at ${Math.round(st.frameRate || 0)} fps` + (st.frameRate && st.frameRate < cfg.fps - 1 ? ' (camera limit; more light can help)' : '') : '';
   }
 
   status('Starting camera…');
@@ -438,9 +510,41 @@ async function portal() {
   };
   applySelf();
   const toggleFs = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {});
-  $('b-mic').onclick = toggleMic; $('b-cam').onclick = toggleCam; $('b-self').onclick = toggleSelf; $('b-stats').onclick = toggleStats; $('b-fs').onclick = toggleFs;
+  // ---------- Settings panel ----------
+  async function fillDevices() {
+    let devs = [];
+    try { devs = await navigator.mediaDevices.enumerateDevices(); } catch {}
+    const cur = { videoinput: localStream.getVideoTracks()[0]?.getSettings().deviceId, audioinput: localStream.getAudioTracks()[0]?.getSettings().deviceId, audiooutput: remoteVideo.sinkId || '' };
+    const fill = (sel, kind) => {
+      const el = $(sel); el.innerHTML = '';
+      const list = devs.filter((d) => d.kind === kind);
+      if (kind === 'audiooutput') { const o = document.createElement('option'); o.value = ''; o.textContent = 'System default'; el.appendChild(o); }
+      list.forEach((d, i) => { if (kind === 'audiooutput' && d.deviceId === 'default') return; const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || `${kind} ${i + 1}`; el.appendChild(o); });
+      el.value = cur[kind] ?? '';
+      el.disabled = kind === 'audiooutput' && !remoteVideo.setSinkId;
+    };
+    fill('p-cam', 'videoinput'); fill('p-mic', 'audioinput'); fill('p-spk', 'audiooutput');
+    $('p-res').value = cfg.res; $('p-fps').value = String(cfg.fps); $('p-bitrate').value = cfg.kbpsAuto ? '0' : String(cfg.kbps);
+    if (![...$('p-bitrate').options].some((o) => o.value === $('p-bitrate').value)) { const o = document.createElement('option'); o.value = String(cfg.kbps); o.textContent = `${(cfg.kbps / 1000).toFixed(1)} Mbps`; $('p-bitrate').appendChild(o); $('p-bitrate').value = o.value; }
+    showActual();
+  }
+  const guard = (fn) => async (e) => { const el = e.target; el.disabled = true; try { await fn(el.value); } catch (err) { toast(`Couldn’t switch: ${err.name || err.message}`); fillDevices(); } finally { el.disabled = false; } };
+  $('p-cam').onchange = guard(switchCamera);
+  $('p-mic').onchange = guard(switchMic);
+  $('p-spk').onchange = guard(switchSpeaker);
+  $('p-res').onchange = guard((v) => setQuality({ res: v }));
+  $('p-fps').onchange = guard((v) => setQuality({ fps: v }));
+  $('p-bitrate').onchange = guard((v) => setQuality({ kbps: v }));
+  const toggleSettings = () => { const open = document.body.classList.toggle('show-settings'); if (open) fillDevices(); };
+  $('p-close').onclick = toggleSettings;
+  navigator.mediaDevices.addEventListener?.('devicechange', () => { if (document.body.classList.contains('show-settings')) fillDevices(); });
+
+  $('b-mic').onclick = toggleMic; $('b-cam').onclick = toggleCam; $('b-self').onclick = toggleSelf; $('b-settings').onclick = toggleSettings; $('b-stats').onclick = toggleStats; $('b-fs').onclick = toggleFs;
   document.addEventListener('keydown', (e) => {
+    if (e.target.closest?.('select, input, textarea')) return; // typing in the panel isn't a shortcut
     const k = e.key.toLowerCase();
+    if (k === 'd') return toggleSettings();
+    if (k === 'escape' && document.body.classList.contains('show-settings')) return toggleSettings();
     if (k === 'm') toggleMic(); else if (k === 'v') toggleCam(); else if (e.key === ']') nudgeSync(20); else if (e.key === '[') nudgeSync(-20); else if (e.key === '\\') { cfg.avsync = 20; nudgeSync(-20); } else if (k === 'h') toggleSelf(); else if (k === 's') toggleStats(); else if (k === 'f') toggleFs();
   });
   remoteVideo.addEventListener('dblclick', toggleFs);
@@ -449,7 +553,7 @@ async function portal() {
   let idle;
   const wake = () => {
     document.body.classList.remove('hide-cursor'); document.body.classList.add('show-ui');
-    clearTimeout(idle); idle = setTimeout(() => { document.body.classList.add('hide-cursor'); document.body.classList.remove('show-ui'); }, 3000);
+    clearTimeout(idle); idle = setTimeout(() => { if (document.body.classList.contains('show-settings')) return wake(); document.body.classList.add('hide-cursor'); document.body.classList.remove('show-ui'); }, 3000);
   };
   ['mousemove', 'touchstart', 'keydown'].forEach((ev) => document.addEventListener(ev, wake, { passive: true }));
   wake();
