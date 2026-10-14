@@ -1,0 +1,25 @@
+{
+  "name": "University of Evansville",
+  "order": 2,
+  "shape": "rounded",
+  "inset": 3,
+  "radius": 34,
+  "border": {
+    "width": 12,
+    "gradient": "linear-gradient(135deg, #5b2d94 0%, #4f2683 40%, #3a1b62 100%)",
+    "innerWidth": 3,
+    "innerColor": "#f47b20"
+  },
+  "glow": { "color": "rgba(244,123,32,0.30)", "size": 60 },
+  "background": "radial-gradient(ellipse at center, #2b1649 0%, #150a26 60%, #0a0512 100%)",
+  "accent": "#f47b20",
+  "logo": {
+    "text": "UNIVERSITY OF EVANSVILLE",
+    "file": null,
+    "position": "bottom-left",
+    "size": 4.5,
+    "plate": "rgba(79,38,131,0.88)",
+    "color": "#ffffff"
+  },
+  "selfView": { "radius": 14, "border": "#f47b20" }
+}
