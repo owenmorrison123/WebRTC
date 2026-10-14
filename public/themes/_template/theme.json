@@ -1,0 +1,31 @@
+{
+  "name": "My campus theme",
+  "order": 60,
+  "shape": "rounded",
+  "inset": 3,
+  "radius": 32,
+  "archRise": 0.4,
+  "aspect": null,
+  "border": {
+    "width": 10,
+    "color": "#8b0000",
+    "gradient": null,
+    "spin": 0
+  },
+  "glow": {
+    "color": "rgba(255,255,255,0.25)",
+    "size": 50,
+    "spread": 0,
+    "pulse": false
+  },
+  "background": "#0b0b0b",
+  "waiting": null,
+  "overlay": null,
+  "overlayFit": "stretch",
+  "accent": "#ffcc00",
+  "selfView": {
+    "shape": "rounded",
+    "radius": 12,
+    "border": "#ffcc00"
+  }
+}
