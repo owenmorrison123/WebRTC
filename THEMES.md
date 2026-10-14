@@ -29,6 +29,8 @@ Every field is optional; anything left out uses the default.
 | `border.width` | `0` | Border thickness in px |
 | `border.color` | `"transparent"` | Solid border color, any CSS color |
 | `border.gradient` | `null` | Any CSS background used for the border instead of `color`: a gradient, or an image such as `"url(stone.jpg) center/cover"` |
+| `border.innerWidth` | `0` | Thin accent line just inside the border, in px |
+| `border.innerColor` | none | Color of that inner line |
 | `border.spin` | `0` | Seconds per full turn for a rotating border. Only works when `gradient` is a `conic-gradient(from var(--spin), …)` |
 | `glow.color` | none | Glow around the outside of the portal, any CSS color (use transparency) |
 | `glow.size` | `40` | Glow blur in px |
@@ -39,11 +41,26 @@ Every field is optional; anything left out uses the default.
 | `overlay` | `null` | An image drawn on top of everything, such as hand-made frame artwork (see below) |
 | `overlayFit` | `"stretch"` | How the overlay fills the screen: `"stretch"`, `"cover"` or `"contain"` |
 | `accent` | blue | Accent color for the portal's controls and spinner |
+| `logo.file` | none | Logo image in the theme folder (PNG with transparent background, or SVG) |
+| `logo.text` | none | Text badge to show instead when there's no `file` yet |
+| `logo.position` | `"bottom-left"` | `"bottom-left"`, `"bottom-right"`, `"top-left"` or `"top-right"` |
+| `logo.size` | `6` | Logo height as a **percentage of the shorter screen side** |
+| `logo.margin` | `2` | Gap from the corner, same units as `size` |
+| `logo.anchor` | `"frame"` | `"frame"` places the logo inside the portal's corner; `"screen"` uses the screen corner (better for circles) |
+| `logo.plate` | none | CSS background behind the logo for contrast, such as `"rgba(0,0,0,0.5)"` |
+| `logo.color` | white | Text color for a text badge |
+| `logo.opacity` | `1` | Logo transparency |
 | `selfView.shape` | rounded | `"rounded"`, `"rect"` or `"circle"` for your own small video |
 | `selfView.radius` | `10` | Corner radius in px for the self-view |
 | `selfView.border` | faint white | Self-view border color |
 
 File names and `url(...)` values are relative to the theme's folder, so `"overlay": "frame.png"` means `public/themes/<your-theme>/frame.png`.
+
+### Adding your logo
+
+The `harlaxton` and `evansville` themes show the campus name as a text badge until a logo file is added. To switch to the real logo, put the file in the theme's folder, for example `public/themes/evansville/logo.png`, and set `"file": "logo.png"` in the `logo` section. Use a PNG with a transparent background, or an SVG, at least 400 px tall. A white or light version usually reads best over video; keep the `plate` if the logo has dark parts.
+
+The self-view sits in the bottom-right corner and the controls appear along the bottom middle, so **bottom-left** or **top-right** are the clearest spots for a logo.
 
 ### Example
 
@@ -75,6 +92,8 @@ Use an overlay when the border should look like real artwork, such as carved woo
 | id | Look |
 |---|---|
 | (none) | Full screen, no border |
+| `harlaxton` | Honey-stone arch with block lines, Harlaxton College badge |
+| `evansville` | UE purple frame with an orange inner line, University of Evansville badge |
 | `rounded` | Rounded window with a soft blue glow |
 | `arch` | Stone-colored doorway arch |
 | `porthole` | Circular window with a metal ring |
