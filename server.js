@@ -35,7 +35,25 @@ async function iceServers() {
 const hasTurn = (servers) => servers.some((s) => [].concat(s.urls).some((u) => /^turns?:/.test(u)));
 
 // ---------- static files ----------
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json',
+  '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
+
+// ---------- themes ----------
+// Every folder in public/themes with a theme.json is a theme (folders starting with "_" are ignored).
+// The folder name is the theme's id. See THEMES.md for the format.
+const THEMES_DIR = path.join(PUBLIC_DIR, 'themes');
+function listThemes() {
+  let dirs = [];
+  try { dirs = fs.readdirSync(THEMES_DIR, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith('_')); } catch { return []; }
+  const out = [];
+  for (const d of dirs) {
+    try {
+      const t = JSON.parse(fs.readFileSync(path.join(THEMES_DIR, d.name, 'theme.json'), 'utf8'));
+      out.push({ ...t, id: d.name, name: t.name || d.name, base: `/themes/${encodeURIComponent(d.name)}/` });
+    } catch (e) { console.error(`Skipping theme "${d.name}": ${e.message}`); }
+  }
+  return out.sort((a, b) => (a.order ?? 50) - (b.order ?? 50) || a.name.localeCompare(b.name));
+}
 
 const keyOk = (k) => !ROOM_KEY || (k || '').trim() === ROOM_KEY;
 
@@ -49,6 +67,10 @@ function handler(req, res) {
     });
   }
   if (url.pathname === '/health') { res.writeHead(200); return res.end('ok'); }
+  if (url.pathname === '/themes') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+    return res.end(JSON.stringify(listThemes()));
+  }
   let file = path.normalize(path.join(PUBLIC_DIR, url.pathname === '/' ? 'index.html' : url.pathname));
   if (!file.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, data) => {
