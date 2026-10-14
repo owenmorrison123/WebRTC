@@ -18,9 +18,9 @@ const autoKbps = (preset, fps) => Math.round((preset.kbps * (fps > 30 ? 1.6 : fp
    ===================================================================== */
 const THEME_DEFAULTS = {
   shape: 'rect', inset: 0, radius: 0, aspect: null, archRise: 0.4,
-  border: { width: 0, color: 'transparent', gradient: null, spin: 0 },
+  border: { width: 0, color: 'transparent', gradient: null, spin: 0, innerWidth: 0, innerColor: null },
   glow: null, background: '#000', waiting: null,
-  overlay: null, overlayFit: 'stretch', accent: null, selfView: {},
+  overlay: null, overlayFit: 'stretch', accent: null, selfView: {}, logo: null,
 };
 async function loadThemes() {
   try { return await (await fetch('/themes', { cache: 'no-store' })).json(); } catch { return []; }
@@ -42,6 +42,9 @@ function applyTheme(theme) {
   portalEl.style.background = themeCss(base, t.background) || '#000';
   frame.style.background = themeCss(base, t.border.gradient || t.border.color) || 'transparent';
   frame.classList.toggle('spin', !!t.border.spin);
+  if (t.border.innerWidth && t.border.innerColor) {
+    frame.style.setProperty('--t-inner-w', `${t.border.innerWidth}px`); frame.style.setProperty('--t-inner-c', t.border.innerColor);
+  } else { frame.style.removeProperty('--t-inner-w'); frame.style.removeProperty('--t-inner-c'); }
   frame.style.setProperty('--t-spin', `${t.border.spin || 8}s`);
   if (t.glow?.color) {
     frame.style.setProperty('--t-glow', `0 0 ${t.glow.size ?? 40}px ${t.glow.spread ?? 0}px ${t.glow.color}`);
@@ -59,6 +62,15 @@ function applyTheme(theme) {
     art.style.objectFit = { stretch: 'fill', cover: 'cover', contain: 'contain' }[t.overlayFit] || 'fill';
     art.style.display = 'block';
   } else { art.removeAttribute('src'); art.style.display = 'none'; }
+
+  // Corner logo: an image file, or a text badge until the real logo file is added.
+  const logo = $('logo'); logo.innerHTML = '';
+  const lg = t.logo && (t.logo.file || t.logo.text) ? t.logo : null;
+  if (lg) {
+    if (lg.file) { const img = document.createElement('img'); img.src = themeUrl(base, lg.file); img.alt = lg.text || ''; logo.appendChild(img); }
+    else { const sp = document.createElement('span'); sp.textContent = lg.text; sp.style.color = lg.color || '#fff'; logo.appendChild(sp); }
+    Object.assign(logo.style, { display: 'flex', background: lg.plate || 'transparent', opacity: lg.opacity ?? 1 });
+  } else logo.style.display = 'none';
 
   const sv = t.selfView;
   local.style.borderColor = sv.border || '';
@@ -90,6 +102,22 @@ function layoutFrame() {
   }
   Object.assign(frame.style, { inset: 'auto', left: `${(W - w) / 2}px`, top: `${(H - h) / 2}px`, width: `${w}px`, height: `${h}px`, padding: `${bw}px`, borderRadius: outer });
   stage.style.borderRadius = inner;
+
+  // Corner logo: sized as a % of the shorter screen side; anchored inside the portal ("frame", default)
+  // or to the screen edge ("screen", better for circles).
+  const lg = t.logo, logo = $('logo');
+  if (lg && (lg.file || lg.text) && logo) {
+    const unit = Math.min(W, H) / 100, size = (Number(lg.size) || 6) * unit, gap = (lg.margin ?? 2) * unit;
+    const pad = lg.plate ? size * 0.22 : 0;
+    const box = lg.anchor === 'screen' ? { l: 0, t: 0, r: W, b: H } : { l: (W - w) / 2 + bw, t: (H - h) / 2 + bw, r: (W + w) / 2 - bw, b: (H + h) / 2 - bw };
+    const pos = lg.position || 'bottom-left';
+    Object.assign(logo.style, {
+      height: `${size + 2 * pad}px`, padding: `${pad}px ${pad * 1.4}px`, borderRadius: `${Math.round(size * 0.25)}px`,
+      left: pos.includes('left') ? `${box.l + gap}px` : 'auto', right: pos.includes('right') ? `${W - box.r + gap}px` : 'auto',
+      top: pos.includes('top') ? `${box.t + gap}px` : 'auto', bottom: pos.includes('bottom') ? `${H - box.b + gap}px` : 'auto',
+    });
+    const sp = logo.querySelector('span'); if (sp) sp.style.fontSize = `${size * 0.62}px`;
+  }
 }
 window.addEventListener('resize', () => layoutFrame());
 
