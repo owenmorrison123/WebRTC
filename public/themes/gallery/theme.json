@@ -1,0 +1,11 @@
+{
+  "name": "Gallery frame",
+  "order": 50,
+  "shape": "rect",
+  "inset": 8,
+  "overlay": "frame.svg",
+  "overlayFit": "stretch",
+  "background": "#1a1410",
+  "accent": "#e2b866",
+  "selfView": { "radius": 6, "border": "#c99a45" }
+}
