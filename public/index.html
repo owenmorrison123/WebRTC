@@ -36,6 +36,8 @@
   #stats { position:absolute; right:20px; top:16px; min-width:280px; padding:12px 14px; border-radius:12px; background:var(--panel); font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; display:none; white-space:pre; z-index:3; }
   body.show-stats #stats { display:block; }
   #stats b { color:var(--accent); font-weight:600; }
+  #toast { position:absolute; left:50%; top:24px; transform:translateX(-50%); padding:10px 16px; border-radius:10px; background:var(--panel); font-weight:600; opacity:0; transition:opacity .3s; pointer-events:none; z-index:6; }
+  #toast.show { opacity:1; }
 
   /* ---------- setup ---------- */
   #setup { display:none; height:100%; overflow:auto; padding:32px 16px; }
@@ -109,6 +111,7 @@
   <pre id="stats"></pre>
   <div id="overlay"><div class="ring"></div><h1 id="ov-title">Starting portal…</h1><p id="ov-sub"></p><form id="ov-key"><input id="ov-key-input" placeholder="Room key" autocomplete="off" spellcheck="false"><button>Try again</button></form></div>
   <div id="tap">Click anywhere to start audio</div>
+  <div id="toast"></div>
   <div id="toolbar">
     <button id="b-mic" title="Mute microphone (M)">Mic</button>
     <button id="b-cam" title="Turn camera off (V)">Camera</button>
