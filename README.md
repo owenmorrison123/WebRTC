@@ -59,6 +59,8 @@ Allow camera and mic once ("Remember this decision") and turn off OS sleep and s
 | **M** | Mute/unmute mic |
 | **V** | Camera on/off |
 | **H** | Show/hide your own video (self-view) |
+| **]** / **[** | Lip-sync trim: delay audio / delay video by 20 ms per press |
+| **\\** | Reset lip-sync trim to automatic |
 | **F** or double-click | Fullscreen |
 
 Moving the mouse shows a toolbar. The cursor hides after 3 s.
@@ -74,7 +76,10 @@ Moving the mouse shows a toolbar. The cursor hides after 3 s.
 | `fps` | `30` | Max frame rate |
 | `bitrate` | 1200/2500/4500 | Max video kbps |
 | `codec` | auto | `VP8`, `H264`, `VP9`, `AV1` |
-| `jb` | `0` | Jitter-buffer target in ms. Raise to 50–150 if video stutters on a lossy link (smoother but more delay) |
+| `jb` | browser default | Minimum video buffer in ms. Raise to 50–150 if video stutters on a lossy link (smoother but more delay) |
+| `avsync` | `0` | Lip-sync trim in ms: positive delays audio, negative delays video (set by **]** / **[**) |
+| `autosync=0` | — | Turn off automatic lip sync |
+| `relay=1` | — | Force all traffic through the TURN relay (for testing) |
 | `cam` / `mic` / `spk` | default | Device IDs (the setup page fills these) |
 | `self=0` | — | Start with self-view hidden (toggle any time with **H** or the toolbar) |
 | `fit=contain` | — | Letterbox instead of crop-to-fill |
@@ -91,6 +96,7 @@ The server is a single Node process with one dependency (`ws`). Any host that su
 | `PORT` | Listen port (default 8080) |
 | `ROOM_KEY` | Shared secret. **Set this**, so only people with the link can join |
 | `SSL_CERT`, `SSL_KEY` | Paths to cert/key if serving HTTPS directly (otherwise put it behind a reverse proxy) |
+| `CF_TURN_KEY_ID`, `CF_TURN_API_TOKEN` | Cloudflare TURN key ID and API token (recommended relay; see section 4) |
 | `TURN_URLS` | e.g. `turn:turn.example.edu:3478?transport=udp,turns:turn.example.edu:443?transport=tcp` |
 | `TURN_SECRET` | coturn `static-auth-secret`. Generates short-lived credentials automatically |
 | `TURN_USER`, `TURN_PASS` | Static TURN credentials (alternative to `TURN_SECRET`) |
@@ -130,7 +136,15 @@ University networks often block the peer-to-peer UDP that WebRTC prefers. Test f
 - No connection, or stuck on "Connecting…": you need a **TURN relay**.
 - `TURN relay` works, but each packet takes an extra hop. **Put the TURN server close to the straight line between the sites** (for example US East or London) to keep added delay small.
 
-**Option A: managed TURN.** Cloudflare Calls TURN, Twilio Network Traversal, or Metered.ca. Paste their ICE config into `ICE_SERVERS`.
+**Option A (recommended): Cloudflare TURN.** The first 1,000 GB a month is free, then $0.05/GB.
+
+1. In the Cloudflare dashboard, open **Realtime → TURN Server** and create a TURN key.
+2. Copy the **Turn Token ID** and **API Token**.
+3. Set `CF_TURN_KEY_ID` and `CF_TURN_API_TOKEN` on the server and redeploy.
+
+The server mints short-lived credentials (the API token never reaches browsers), and clients refresh them every 6 hours. Press **S** in the portal: **Relay** should read "TURN configured". To prove the relay works, open both sites with `&relay=1` added to the link. They should connect with **Path** reading "TURN relay (forced)".
+
+Other managed options (Twilio, Metered.ca) work too: paste their ICE config into `ICE_SERVERS`.
 
 **Option B: self-host coturn** on a small VM with a public IP:
 
@@ -163,7 +177,13 @@ TURN_SECRET=LONG_RANDOM_SECRET
 
 **Ask both campus IT teams** to allow outbound UDP to the TURN server's ports, or better, outbound UDP in general from the kiosk machines. The `turns:…:443` entry is a fallback that works through almost any firewall, but TCP adds delay when packets are lost.
 
-## 5. Tips for the lowest delay
+## 5. Lip sync
+
+The browser lines audio up with video using RTP timestamps. It can't see delay added inside the video pipeline, though: a slow decoder, frames held for loss recovery, or a busy computer. That can leave audio playing ahead of the picture. The portal measures how long video takes from arrival to decode each second, and holds audio for at least that long, so they play together.
+
+Some delay happens before the video is sent, for example in a laggy USB camera or HDMI capture card. Neither side can measure it. Fix it by ear on the receiving screen: press **]** to delay audio, or **[** to delay video, 20 ms per press. The setting is saved in the address bar, so bookmark the page afterwards. Press **S** to see the **lip sync** line.
+
+## 6. Tips for the lowest delay
 
 1. **Wired Ethernet** at both ends, with no VPN on the kiosk machines.
 2. Use **direct P2P** if at all possible. Ask IT to allow UDP.
