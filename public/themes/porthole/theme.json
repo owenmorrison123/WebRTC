@@ -1,0 +1,10 @@
+{
+  "name": "Porthole",
+  "order": 30,
+  "shape": "circle",
+  "inset": 4,
+  "border": { "width": 26, "gradient": "conic-gradient(from 210deg, #f1f5f9, #94a3b8, #475569, #cbd5e1, #f8fafc, #64748b, #f1f5f9)" },
+  "glow": { "color": "rgba(148,197,255,0.30)", "size": 80 },
+  "background": "radial-gradient(circle at center, #0b1e33 0%, #020812 70%)",
+  "selfView": { "shape": "circle", "border": "#cbd5e1" }
+}
