@@ -14,12 +14,36 @@ const GRACE_MS = Number(process.env.GRACE_MS || 15000); // keep a dropped peer's
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
 // ---------- ICE (STUN/TURN) config ----------
-function iceServers() {
+// Cloudflare Realtime TURN: set CF_TURN_KEY_ID + CF_TURN_API_TOKEN. Short-lived credentials are minted
+// here (the long-term token never reaches browsers) and cached for 6 hours; each lasts 24 hours.
+const CF_KEY = process.env.CF_TURN_KEY_ID, CF_TOKEN = process.env.CF_TURN_API_TOKEN;
+let cfCache = null, cfAt = 0;
+async function cloudflareIce() {
+  if (cfCache && Date.now() - cfAt < 6 * 3600 * 1000) return cfCache;
+  const r = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${CF_KEY}/credentials/generate-ice-servers`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${CF_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ttl: 86400 }),
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!r.ok) throw new Error(`Cloudflare TURN credentials: HTTP ${r.status}`);
+  const { iceServers } = await r.json();
+  // Browsers block port 53, so drop those URLs instead of letting them time out.
+  cfCache = iceServers.map((s) => ({ ...s, urls: [].concat(s.urls).filter((u) => !/:53([?/]|$)/.test(u)) }));
+  cfAt = Date.now();
+  return cfCache;
+}
+
+async function iceServers() {
+  if (CF_KEY && CF_TOKEN) {
+    try { return await cloudflareIce(); }
+    catch (e) { console.error(e.message, '— falling back to STUN only'); }
+  }
   if (process.env.ICE_SERVERS) {
     try { return JSON.parse(process.env.ICE_SERVERS); }
     catch (e) { console.error('ICE_SERVERS is not valid JSON:', e.message); }
   }
-  const servers = [{ urls: (process.env.STUN_URLS || 'stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302').split(',') }];
+  const servers = [{ urls: (process.env.STUN_URLS || 'stun:stun.cloudflare.com:3478,stun:stun.l.google.com:19302').split(',') }];
   const turnUrls = process.env.TURN_URLS ? process.env.TURN_URLS.split(',') : null;
   if (turnUrls && process.env.TURN_SECRET) {
     // coturn "use-auth-secret" / REST API: short-lived credentials
@@ -32,6 +56,7 @@ function iceServers() {
   }
   return servers;
 }
+const hasTurn = (servers) => servers.some((s) => [].concat(s.urls).some((u) => /^turns?:/.test(u)));
 
 // ---------- static files ----------
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
@@ -42,8 +67,10 @@ function handler(req, res) {
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/config') {
     if (!keyOk(url.searchParams.get('key'))) { res.writeHead(403); return res.end('forbidden'); }
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    return res.end(JSON.stringify({ iceServers: iceServers() }));
+    return iceServers().then((servers) => {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ iceServers: servers, turn: hasTurn(servers) }));
+    });
   }
   if (url.pathname === '/health') { res.writeHead(200); return res.end('ok'); }
   let file = path.normalize(path.join(PUBLIC_DIR, url.pathname === '/' ? 'index.html' : url.pathname));
@@ -139,4 +166,4 @@ setInterval(() => {
   }
 }, 10000);
 
-server.listen(PORT, () => log(`Campus Portal listening on ${process.env.SSL_CERT ? 'https' : 'http'}://0.0.0.0:${PORT}${ROOM_KEY ? ' (room key required)' : ''}`));
+server.listen(PORT, () => log(`Campus Portal listening on ${process.env.SSL_CERT ? 'https' : 'http'}://0.0.0.0:${PORT}${ROOM_KEY ? ' (room key required)' : ''}${CF_KEY && CF_TOKEN ? ' (Cloudflare TURN on)' : process.env.TURN_URLS || process.env.ICE_SERVERS ? ' (custom ICE)' : ' (STUN only — add TURN for strict networks)'}`));
