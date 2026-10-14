@@ -59,11 +59,18 @@ Allow camera and mic once ("Remember this decision") and turn off OS sleep and s
 | **M** | Mute/unmute mic |
 | **V** | Camera on/off |
 | **H** | Show/hide your own video (self-view) |
+| **D** | Settings: switch camera, mic, speaker; change resolution, frame rate, bitrate |
 | **]** / **[** | Lip-sync trim: delay audio / delay video by 20 ms per press |
 | **\\** | Reset lip-sync trim to automatic |
 | **F** or double-click | Fullscreen |
 
 Moving the mouse shows a toolbar. The cursor hides after 3 s.
+
+### Changing camera, mic and quality during a call
+
+Click **Settings** on the toolbar (or press **D**). Changes apply immediately without dropping the call: the other campus sees the new camera or hears the new mic within a second. Choices are saved in the address bar, so bookmark the page afterwards to keep them.
+
+Each site's settings control the video it **sends**. To make the England feed sharper on your screen, change the settings on the England kiosk. The line under the settings shows what the camera is actually delivering. Many webcams can't do 60 fps at 1080p, and most drop their frame rate in dim rooms, so more light often raises fps.
 
 ### URL options
 
@@ -73,8 +80,8 @@ Moving the mouse shows a toolbar. The cursor hides after 3 s.
 | `key` | — | Room key (required if server sets `ROOM_KEY`) |
 | `label` | — | This site's name, shown on the other screen |
 | `res` | `720` | `540`, `720`, or `1080` |
-| `fps` | `30` | Max frame rate |
-| `bitrate` | 1200/2500/4500 | Max video kbps |
+| `fps` | `30` | Max frame rate (`15`, `24`, `30`, `60`) |
+| `bitrate` | auto | Max video kbps. Auto = 1500 / 3000 / 6000 for 540p / 720p / 1080p at 30 fps (×1.6 at 60 fps) |
 | `codec` | auto | `VP8`, `H264`, `VP9`, `AV1` |
 | `jb` | browser default | Minimum video buffer in ms. Raise to 50–150 if video stutters on a lossy link (smoother but more delay) |
 | `avsync` | `0` | Lip-sync trim in ms: positive delays audio, negative delays video (set by **]** / **[**) |
