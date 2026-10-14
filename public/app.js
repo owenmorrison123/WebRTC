@@ -88,7 +88,10 @@ async function portal() {
     fps: Number(Q.get('fps') || 30),
     kbps: Number(Q.get('bitrate') || 0),
     codec: (Q.get('codec') || '').toUpperCase(),
-    jitterMs: Number(Q.get('jb') ?? 0),   // 0 = let WebRTC keep the jitter buffer as small as possible
+    jitterMs: Q.has('jb') ? Number(Q.get('jb')) : null, // null = browser default (adaptive, lowest safe delay)
+    avsync: Number(Q.get('avsync') || 0),  // manual lip-sync trim in ms: + delays audio, − delays video
+    autosync: Q.get('autosync') !== '0',   // match audio delay to measured video delay
+    relay: Q.get('relay') === '1',         // force traffic through the TURN relay (for testing)
     cam: Q.get('cam'), mic: Q.get('mic'), spk: Q.get('spk'),
   };
   cfg.kbps = cfg.kbps || cfg.preset.kbps;
@@ -121,11 +124,22 @@ async function portal() {
   };
 
   // ---------- ICE config ----------
-  try {
+  let turnAvailable = false;
+  async function fetchIce() {
     const r = await fetch(`/config?key=${encodeURIComponent(cfg.key)}`, { cache: 'no-store' });
-    if (r.status === 403) return wrongKey();
-    iceServers = (await r.json()).iceServers;
-  } catch (e) { console.warn('config fetch failed, using default STUN', e); }
+    if (r.status === 403) return false;
+    const j = await r.json();
+    iceServers = j.iceServers; turnAvailable = !!j.turn;
+    return true;
+  }
+  try { if (!(await fetchIce())) return wrongKey(); }
+  catch (e) { console.warn('config fetch failed, using default STUN', e); }
+  // TURN credentials expire; refresh them on the live connection every 6 hours.
+  setInterval(async () => {
+    try {
+      if (await fetchIce() && pc) pc.setConfiguration({ ...pc.getConfiguration(), iceServers });
+    } catch (e) { console.warn('ICE refresh failed', e); }
+  }, 6 * 3600 * 1000);
 
   // ---------- Local media ----------
   async function getMedia() {
@@ -232,7 +246,7 @@ async function portal() {
     status('Connecting…', peerLabel ? `to ${peerLabel}` : '');
     setDot('', 'Connecting…');
     makingOffer = ignoreOffer = settingRemoteAnswer = false;
-    pc = new RTCPeerConnection({ iceServers, bundlePolicy: 'max-bundle', rtcpMuxPolicy: 'require', iceCandidatePoolSize: 4 });
+    pc = new RTCPeerConnection({ iceServers, iceTransportPolicy: cfg.relay ? 'relay' : 'all', bundlePolicy: 'max-bundle', rtcpMuxPolicy: 'require', iceCandidatePoolSize: 4 });
     const myPc = pc;
 
     for (const track of localStream.getTracks()) {
@@ -291,7 +305,7 @@ async function portal() {
       else armWatchdog();
     }, 20000);
   }
-  function rebuild() { closePc(true); createPc(); }
+  async function rebuild() { try { await fetchIce(); } catch {} closePc(true); createPc(); }
 
   function closePc(keepUi) {
     clearTimeout(watchdog); watchdog = null; clearTimeout(discTimer);
@@ -327,13 +341,47 @@ async function portal() {
     try { transceiver.setCodecPreferences([...want, ...codecs.filter((c) => !want.includes(c))]); } catch (e) { console.warn(e); }
   }
 
+  // Receivers are kept so lip sync can adjust their playout delay while the call runs.
+  let audioRx = null, videoRx = null;
   function tuneReceiver(receiver) {
-    // Ask the jitter buffer to hold as little as possible. This is the single biggest
-    // receive-side latency knob; raise ?jb= (ms) if video looks choppy on a lossy link.
+    if (receiver.track.kind === 'audio') audioRx = receiver; else videoRx = receiver;
+    setTarget(receiver, receiver === videoRx ? videoBase() : null);
+  }
+  const videoBase = () => Math.max(cfg.jitterMs ?? 0, cfg.avsync < 0 ? -cfg.avsync : 0) || null;
+  function setTarget(receiver, ms) {
     try {
-      if ('jitterBufferTarget' in receiver) receiver.jitterBufferTarget = cfg.jitterMs;
-      else if ('playoutDelayHint' in receiver) receiver.playoutDelayHint = cfg.jitterMs / 1000;
-    } catch (e) { console.warn('jitter buffer hint', e); }
+      if ('jitterBufferTarget' in receiver) receiver.jitterBufferTarget = ms;
+      else if ('playoutDelayHint' in receiver) receiver.playoutDelayHint = ms == null ? null : ms / 1000;
+    } catch (e) { console.warn('playout delay', e); }
+  }
+
+  // ---------- Lip sync ----------
+  // WebRTC already lines audio up with video using RTCP timestamps, but delay it cannot see (a slow
+  // camera, a busy decoder, video queued behind loss recovery) can still leave audio ahead. Each second
+  // we measure how long video spends between arriving and being decoded, and hold audio for at least
+  // that long. cfg.avsync adds a manual trim on top for camera/capture latency on the sending side.
+  let syncVideoMs = null, appliedAudioMs = null;
+  function updateSync(videoDelayMs) {
+    if (videoDelayMs != null && isFinite(videoDelayMs)) syncVideoMs = syncVideoMs == null ? videoDelayMs : syncVideoMs * 0.7 + videoDelayMs * 0.3;
+    if (!audioRx) return;
+    const want = Math.max(0, Math.min(2000, (cfg.autosync && syncVideoMs != null ? syncVideoMs : 0) + Math.max(0, cfg.avsync)));
+    const target = want < 10 ? null : Math.round(want);
+    if (target === appliedAudioMs || (target != null && appliedAudioMs != null && Math.abs(target - appliedAudioMs) < 15)) return;
+    setTarget(audioRx, target); appliedAudioMs = target;
+  }
+  function nudgeSync(delta) {
+    cfg.avsync = Math.max(-1000, Math.min(1000, cfg.avsync + delta));
+    if (videoRx) setTarget(videoRx, videoBase());
+    appliedAudioMs = undefined; updateSync(null);
+    const u = new URL(location.href);
+    if (cfg.avsync) u.searchParams.set('avsync', cfg.avsync); else u.searchParams.delete('avsync');
+    history.replaceState(null, '', u);
+    toast(cfg.avsync === 0 ? 'Lip sync: automatic' : cfg.avsync > 0 ? `Audio delayed ${cfg.avsync} ms` : `Video delayed ${-cfg.avsync} ms`);
+  }
+  let toastTimer;
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
   }
 
   async function tuneSenders() {
@@ -393,7 +441,7 @@ async function portal() {
   $('b-mic').onclick = toggleMic; $('b-cam').onclick = toggleCam; $('b-self').onclick = toggleSelf; $('b-stats').onclick = toggleStats; $('b-fs').onclick = toggleFs;
   document.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
-    if (k === 'm') toggleMic(); else if (k === 'v') toggleCam(); else if (k === 'h') toggleSelf(); else if (k === 's') toggleStats(); else if (k === 'f') toggleFs();
+    if (k === 'm') toggleMic(); else if (k === 'v') toggleCam(); else if (e.key === ']') nudgeSync(20); else if (e.key === '[') nudgeSync(-20); else if (e.key === '\\') { cfg.avsync = 20; nudgeSync(-20); } else if (k === 'h') toggleSelf(); else if (k === 's') toggleStats(); else if (k === 'f') toggleFs();
   });
   remoteVideo.addEventListener('dblclick', toggleFs);
 
@@ -414,7 +462,7 @@ async function portal() {
   // ---------- Live stats ----------
   let prev = {};
   setInterval(async () => {
-    if (!pc || !document.body.classList.contains('show-stats')) return;
+    if (!pc || pc.connectionState !== 'connected') return;
     const r = await pc.getStats();
     const by = {}; r.forEach((s) => (by[s.id] = s));
     let pair, inV, inA, outV, transport;
@@ -444,6 +492,13 @@ async function portal() {
       return lost + got > 0 ? (lost / (lost + got)) * 100 : 0;
     };
     const vJb = jbMs(inV, 'inV'), aJb = jbMs(inA, 'inA');
+    // Video's full receive-side delay per frame: first packet in → frame decoded (includes its jitter buffer).
+    const vProc = inV && prev.inV && inV.totalProcessingDelay != null && inV.framesDecoded > prev.inV.framesDecoded
+      ? ((inV.totalProcessingDelay - prev.inV.totalProcessingDelay) / (inV.framesDecoded - prev.inV.framesDecoded)) * 1000
+      : (vJb != null ? vJb + (decMs || 0) : null);
+    updateSync(vProc);
+    if (!document.body.classList.contains('show-stats')) { prev = { inV, inA, outV }; return; }
+    const avGap = vProc != null && aJb != null ? Math.round(vProc - aJb) : null;
     // Rough one-way "glass-to-glass": capture+render (~1 frame each) + encode + network + jitter buffer + decode.
     const frame = 1000 / (inV?.framesPerSecond || cfg.fps);
     const est = rtt != null && vJb != null ? Math.round(frame * 2 + (encMs || 5) + rtt / 2 + vJb + (decMs || 5)) : null;
@@ -451,7 +506,8 @@ async function portal() {
     const codec = inV?.codecId && by[inV.codecId]?.mimeType?.split('/')[1];
     const f = (v, u = '', dp = 0) => (v == null || isNaN(v) ? '–' : v.toFixed(dp) + u);
     $('stats').innerHTML =
-`<b>Path</b>        ${path}
+`<b>Path</b>        ${path}${cfg.relay ? ' (forced)' : ''}
+<b>Relay</b>       ${turnAvailable ? 'TURN configured' : 'STUN only (no relay)'}
 <b>RTT</b>         ${f(rtt, ' ms')}
 <b>Est. delay</b>  ~${f(est, ' ms')} one-way
 
@@ -459,6 +515,7 @@ async function portal() {
   bitrate     ${kbps(inV, 'inV')} kbps
   loss        ${f(lossPct(inV, 'inV'), ' %', 1)}
   jitter buf  ${f(vJb, ' ms')} video · ${f(aJb, ' ms')} audio
+  lip sync    audio ${avGap == null ? '–' : Math.abs(avGap) < 40 ? 'in sync' : avGap > 0 ? `${avGap} ms ahead` : `${-avGap} ms behind`} · trim ${cfg.avsync} ms${cfg.autosync ? ' · auto' : ''}
   decode      ${f(decMs, ' ms', 1)}
   freezes     ${inV?.freezeCount ?? '–'}
 
