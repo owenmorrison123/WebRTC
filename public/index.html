@@ -13,15 +13,28 @@
 
   /* ---------- portal ---------- */
   #portal { position:fixed; inset:0; display:none; }
+  /* Theme frame: #frame is the border (its background shows through its padding), #stage clips the video.
+     Geometry (position, size, corner shape) is set by applyTheme() in app.js. */
+  @property --spin { syntax:'<angle>'; inherits:true; initial-value:0deg; }
+  @keyframes t-spin { to { --spin:360deg; } }
+  @keyframes glowpulse { 0%,100% { opacity:.55; } 50% { opacity:1; } }
+  @keyframes portalopen { from { opacity:0; transform:scale(.96); } to { opacity:1; transform:none; } }
+  #frame { position:absolute; inset:0; box-sizing:border-box; isolation:isolate; transition:inset .4s, border-radius .4s; }
+  #frame.spin { animation:t-spin var(--t-spin, 8s) linear infinite; }
+  #frame::after { content:''; position:absolute; inset:0; border-radius:inherit; box-shadow:var(--t-glow, none); pointer-events:none; }
+  #frame.pulse::after { animation:glowpulse 3s ease-in-out infinite; }
+  #stage { position:relative; width:100%; height:100%; overflow:hidden; background:#000; isolation:isolate; }
   #remote { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#000; }
+  #remote.live { animation:portalopen .7s ease-out; }
   body.fit-contain #remote { object-fit:contain; }
+  #art { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; display:none; }
   #local { position:absolute; right:20px; bottom:20px; width:min(22vw,320px); aspect-ratio:16/9; object-fit:cover; border-radius:10px;
            transform:scaleX(-1); box-shadow:0 4px 24px rgba(0,0,0,.6); border:2px solid rgba(255,255,255,.15); background:#111; transition:opacity .3s; }
   body.no-self #local { display:none; }
   #label { position:absolute; left:20px; top:16px; display:flex; align-items:center; gap:10px; padding:6px 12px; border-radius:999px; background:var(--panel); font-weight:600; letter-spacing:.02em; }
   #dot { width:10px; height:10px; border-radius:50%; background:var(--warn); box-shadow:0 0 10px currentColor; }
   #dot.ok { background:var(--ok); } #dot.bad { background:var(--bad); }
-  #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; background:radial-gradient(ellipse at center,#0b1520 0%,#05070a 70%); text-align:center; padding:24px; transition:opacity .6s; }
+  #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; background:var(--t-wait, radial-gradient(ellipse at center,#0b1520 0%,#05070a 70%)); text-align:center; padding:24px; transition:opacity .6s; }
   #overlay.hidden { opacity:0; pointer-events:none; }
   #overlay h1 { margin:0; font-size:clamp(28px,4vw,56px); font-weight:300; }
   #overlay p { margin:0; color:var(--muted); font-size:clamp(15px,1.6vw,22px); }
@@ -101,6 +114,9 @@
     </div>
     <div class="row">
       <div><label for="s-spk">Speaker</label><select id="s-spk"><option value="">Default</option></select></div>
+      <div><label for="s-theme">Theme</label><select id="s-theme"><option value="">Full screen (no border)</option></select></div>
+    </div>
+    <div class="row">
       <div><label for="s-codec">Video codec</label>
         <select id="s-codec"><option value="">Auto</option><option>VP8</option><option>H264</option><option>VP9</option><option>AV1</option></select></div>
     </div>
@@ -120,7 +136,8 @@
 
 <!-- Portal -->
 <section id="portal">
-  <video id="remote" autoplay playsinline></video>
+  <div id="frame"><div id="stage"><video id="remote" autoplay playsinline></video></div></div>
+  <img id="art" alt="">
   <video id="local" autoplay muted playsinline></video>
   <div id="label"><span id="dot"></span><span id="label-text">Connecting…</span></div>
   <pre id="stats"></pre>
@@ -129,6 +146,7 @@
   <div id="toast"></div>
   <div id="settings">
     <h3>Settings</h3>
+    <label>Theme<select id="p-theme"></select></label>
     <label>Camera<select id="p-cam"></select></label>
     <label>Microphone<select id="p-mic"></select></label>
     <label>Speaker<select id="p-spk"></select></label>
