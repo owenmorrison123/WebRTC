@@ -1,0 +1,11 @@
+{
+  "name": "Rounded window",
+  "order": 10,
+  "shape": "rounded",
+  "inset": 3,
+  "radius": 36,
+  "border": { "width": 3, "color": "rgba(255,255,255,0.22)" },
+  "glow": { "color": "rgba(56,189,248,0.35)", "size": 60 },
+  "background": "radial-gradient(ellipse at center, #0e1a26 0%, #04070b 75%)",
+  "selfView": { "radius": 16, "border": "rgba(255,255,255,0.25)" }
+}
