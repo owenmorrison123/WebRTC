@@ -59,12 +59,17 @@ Allow camera and mic once ("Remember this decision") and turn off OS sleep and s
 | **M** | Mute/unmute mic |
 | **V** | Camera on/off |
 | **H** | Show/hide your own video (self-view) |
-| **D** | Settings: switch camera, mic, speaker; change resolution, frame rate, bitrate |
+| **D** | Settings: switch camera, mic, speaker; change resolution, frame rate, bitrate, theme |
+| **T** | Cycle through themes (borders) |
 | **]** / **[** | Lip-sync trim: delay audio / delay video by 20 ms per press |
 | **\\** | Reset lip-sync trim to automatic |
 | **F** or double-click | Fullscreen |
 
 Moving the mouse shows a toolbar. The cursor hides after 3 s.
+
+### Themes
+
+Each kiosk can pick a border for its portal: rounded, arch, porthole, neon, picture frame, or full screen. Choose one in **Settings** or press **T**. To make your own, see **[THEMES.md](THEMES.md)**.
 
 ### Changing camera, mic and quality during a call
 
@@ -198,6 +203,8 @@ Some delay happens before the video is sent, for example in a laggy USB camera o
 ```
 server.js         signaling + static server + TURN credential minting
 public/index.html setup page + portal UI
-public/app.js     WebRTC client (perfect negotiation, auto-recovery, tuning, stats)
+public/app.js     WebRTC client (perfect negotiation, auto-recovery, tuning, stats, themes)
+public/themes/    one folder per theme (see THEMES.md)
+THEMES.md         how to make a theme
 Dockerfile
 ```
