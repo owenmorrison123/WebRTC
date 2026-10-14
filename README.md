@@ -103,7 +103,6 @@ The server is a single Node process with one dependency (`ws`). Any host that su
 | `PORT` | Listen port (default 8080) |
 | `ROOM_KEY` | Shared secret. **Set this**, so only people with the link can join |
 | `SSL_CERT`, `SSL_KEY` | Paths to cert/key if serving HTTPS directly (otherwise put it behind a reverse proxy) |
-| `CF_TURN_KEY_ID`, `CF_TURN_API_TOKEN` | Cloudflare TURN key ID and API token (recommended relay; see section 4) |
 | `TURN_URLS` | e.g. `turn:turn.example.edu:3478?transport=udp,turns:turn.example.edu:443?transport=tcp` |
 | `TURN_SECRET` | coturn `static-auth-secret`. Generates short-lived credentials automatically |
 | `TURN_USER`, `TURN_PASS` | Static TURN credentials (alternative to `TURN_SECRET`) |
@@ -143,15 +142,9 @@ University networks often block the peer-to-peer UDP that WebRTC prefers. Test f
 - No connection, or stuck on "Connecting…": you need a **TURN relay**.
 - `TURN relay` works, but each packet takes an extra hop. **Put the TURN server close to the straight line between the sites** (for example US East or London) to keep added delay small.
 
-**Option A (recommended): Cloudflare TURN.** The first 1,000 GB a month is free, then $0.05/GB.
+No relay is configured by default. The two sites connect directly, which works on most networks.
 
-1. In the Cloudflare dashboard, open **Realtime → TURN Server** and create a TURN key.
-2. Copy the **Turn Token ID** and **API Token**.
-3. Set `CF_TURN_KEY_ID` and `CF_TURN_API_TOKEN` on the server and redeploy.
-
-The server mints short-lived credentials (the API token never reaches browsers), and clients refresh them every 6 hours. Press **S** in the portal: **Relay** should read "TURN configured". To prove the relay works, open both sites with `&relay=1` added to the link. They should connect with **Path** reading "TURN relay (forced)".
-
-Other managed options (Twilio, Metered.ca) work too: paste their ICE config into `ICE_SERVERS`.
+**Option A: a managed TURN service** (Twilio, Metered.ca and others): paste their ICE config into `ICE_SERVERS`.
 
 **Option B: self-host coturn** on a small VM with a public IP:
 
