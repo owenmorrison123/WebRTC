@@ -13,6 +13,86 @@ const PRESETS = {
 };
 const autoKbps = (preset, fps) => Math.round((preset.kbps * (fps > 30 ? 1.6 : fps < 24 ? 0.6 : 1)) / 100) * 100;
 
+/* =====================================================================
+   THEMES — see THEMES.md. A theme is a folder in public/themes with a theme.json.
+   ===================================================================== */
+const THEME_DEFAULTS = {
+  shape: 'rect', inset: 0, radius: 0, aspect: null, archRise: 0.4,
+  border: { width: 0, color: 'transparent', gradient: null, spin: 0 },
+  glow: null, background: '#000', waiting: null,
+  overlay: null, overlayFit: 'stretch', accent: null, selfView: {},
+};
+async function loadThemes() {
+  try { return await (await fetch('/themes', { cache: 'no-store' })).json(); } catch { return []; }
+}
+// Relative url(...) values and file names in a theme are relative to the theme's own folder.
+const themeUrl = (base, u) => (/^(data:|https?:|\/)/.test(u) ? u : base + u);
+const themeCss = (base, v) => (typeof v === 'string' ? v.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (m, q, u) => `url("${themeUrl(base, u.trim())}")`) : v);
+const parseAspect = (a) => { if (!a) return null; if (typeof a === 'number') return a; const [w, h] = String(a).split(/[:/x]/).map(Number); return w > 0 && h > 0 ? w / h : null; };
+
+let activeTheme = null;
+function applyTheme(theme) {
+  const base = theme?.base || '';
+  const t = { ...THEME_DEFAULTS, ...(theme || {}) };
+  t.border = { ...THEME_DEFAULTS.border, ...(theme?.border || {}) };
+  t.selfView = { ...(theme?.selfView || {}) };
+  activeTheme = t;
+  const root = document.documentElement.style, frame = $('frame'), portalEl = $('portal'), art = $('art'), local = $('local');
+
+  portalEl.style.background = themeCss(base, t.background) || '#000';
+  frame.style.background = themeCss(base, t.border.gradient || t.border.color) || 'transparent';
+  frame.classList.toggle('spin', !!t.border.spin);
+  frame.style.setProperty('--t-spin', `${t.border.spin || 8}s`);
+  if (t.glow?.color) {
+    frame.style.setProperty('--t-glow', `0 0 ${t.glow.size ?? 40}px ${t.glow.spread ?? 0}px ${t.glow.color}`);
+    frame.classList.toggle('pulse', !!t.glow.pulse);
+  } else { frame.style.removeProperty('--t-glow'); frame.classList.remove('pulse'); }
+
+  const framed = t.shape !== 'rect' || t.inset > 0 || t.border.width > 0;
+  if (t.waiting) root.setProperty('--t-wait', themeCss(base, t.waiting));
+  else if (framed) root.setProperty('--t-wait', 'transparent'); // let the empty frame show while waiting
+  else root.removeProperty('--t-wait');
+  if (t.accent) root.setProperty('--accent', t.accent); else root.removeProperty('--accent');
+
+  if (t.overlay) {
+    art.src = themeUrl(base, t.overlay);
+    art.style.objectFit = { stretch: 'fill', cover: 'cover', contain: 'contain' }[t.overlayFit] || 'fill';
+    art.style.display = 'block';
+  } else { art.removeAttribute('src'); art.style.display = 'none'; }
+
+  const sv = t.selfView;
+  local.style.borderColor = sv.border || '';
+  local.style.borderRadius = sv.shape === 'circle' ? '50%' : sv.shape === 'rect' ? '0' : sv.radius != null ? `${sv.radius}px` : '';
+  local.style.aspectRatio = sv.shape === 'circle' ? '1 / 1' : '';
+  local.style.width = sv.shape === 'circle' ? 'min(16vw, 220px)' : '';
+  layoutFrame();
+}
+// Position and shape the frame for the current screen size (called on apply and on every resize).
+function layoutFrame() {
+  const t = activeTheme || THEME_DEFAULTS, frame = $('frame'), stage = $('stage');
+  if (!frame) return;
+  const W = window.innerWidth, H = window.innerHeight;
+  const m = (Number(t.inset) || 0) / 100 * Math.min(W, H);
+  const aspect = t.shape === 'circle' ? 1 : parseAspect(t.aspect);
+  let w = W - 2 * m, h = H - 2 * m;
+  if (aspect) { w = Math.min(w, h * aspect); h = w / aspect; }
+  const bw = Math.max(0, Number(t.border.width) || 0), R = Math.max(0, Number(t.radius) || 0);
+  let outer = '0', inner = '0';
+  if (t.shape === 'rounded') { outer = `${R}px`; inner = `${Math.max(R - bw, 0)}px`; }
+  else if (t.shape === 'circle') { outer = inner = '50%'; }
+  else if (t.shape === 'arch') {
+    // Top is a half-ellipse: as wide as the frame, rising at most archRise × height. On a portrait
+    // screen that is a true round doorway arch; on a landscape screen it flattens into an arched window.
+    const rise = Math.min(w / 2, h * (Number(t.archRise) || 0.4));
+    const a = w / 2, a2 = Math.max(a - bw, 0), v2 = Math.max(rise - bw, 0), r2 = Math.max(R - bw, 0);
+    outer = `${a}px ${a}px ${R}px ${R}px / ${rise}px ${rise}px ${R}px ${R}px`;
+    inner = `${a2}px ${a2}px ${r2}px ${r2}px / ${v2}px ${v2}px ${r2}px ${r2}px`;
+  }
+  Object.assign(frame.style, { inset: 'auto', left: `${(W - w) / 2}px`, top: `${(H - h) / 2}px`, width: `${w}px`, height: `${h}px`, padding: `${bw}px`, borderRadius: outer });
+  stage.style.borderRadius = inner;
+}
+window.addEventListener('resize', () => layoutFrame());
+
 if (!Q.get('room')) setup(); else portal();
 
 /* =====================================================================
@@ -32,6 +112,7 @@ async function setup() {
     const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || `${kind} ${i + 1}`; f(sel).appendChild(o);
   });
   fill('s-cam', 'videoinput'); fill('s-mic', 'audioinput'); fill('s-spk', 'audiooutput');
+  for (const t of await loadThemes()) { const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; f('s-theme').appendChild(o); }
 
   const build = () => {
     const p = new URLSearchParams();
@@ -45,6 +126,7 @@ async function setup() {
     if (f('s-mic').value) p.set('mic', f('s-mic').value);
     if (f('s-spk').value) p.set('spk', f('s-spk').value);
     if (f('s-codec').value) p.set('codec', f('s-codec').value);
+    if (f('s-theme').value) p.set('theme', f('s-theme').value);
     if (!f('s-self').checked) p.set('self', '0');
     if (f('s-contain').checked) p.set('fit', 'contain');
     if (f('s-stats').checked) p.set('stats', '1');
@@ -105,6 +187,19 @@ async function portal() {
   if (Q.get('self') === '0') document.body.classList.add('no-self');
   if (Q.get('fit') === 'contain') document.body.classList.add('fit-contain');
   if (Q.get('stats') === '1') document.body.classList.add('show-stats');
+
+  // ---------- Theme ----------
+  const themes = await loadThemes();
+  cfg.theme = Q.get('theme') || '';
+  applyTheme(themes.find((t) => t.id === cfg.theme));
+  function setTheme(id) {
+    const t = themes.find((x) => x.id === id);
+    cfg.theme = t ? id : '';
+    applyTheme(t);
+    setParam('theme', cfg.theme || null);
+    toast(t ? `Theme: ${t.name}` : 'Theme: full screen');
+  }
+  const cycleTheme = () => { const ids = ['', ...themes.map((t) => t.id)]; setTheme(ids[(ids.indexOf(cfg.theme) + 1) % ids.length]); };
 
   const clientId = crypto.randomUUID();
   const remoteVideo = $('remote'), localVideo = $('local');
@@ -337,6 +432,7 @@ async function portal() {
       tuneReceiver(receiver);
       if (remoteVideo.srcObject !== streams[0]) {
         remoteVideo.srcObject = streams[0];
+        remoteVideo.classList.remove('live'); void remoteVideo.offsetWidth; remoteVideo.classList.add('live');
         remoteVideo.play().catch(() => askForGesture());
       }
       track.onunmute = () => remoteVideo.play().catch(() => askForGesture());
@@ -524,11 +620,15 @@ async function portal() {
       el.disabled = kind === 'audiooutput' && !remoteVideo.setSinkId;
     };
     fill('p-cam', 'videoinput'); fill('p-mic', 'audioinput'); fill('p-spk', 'audiooutput');
+    const th = $('p-theme'); th.innerHTML = '';
+    [{ id: '', name: 'Full screen (no border)' }, ...themes].forEach((t) => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; th.appendChild(o); });
+    th.value = cfg.theme;
     $('p-res').value = cfg.res; $('p-fps').value = String(cfg.fps); $('p-bitrate').value = cfg.kbpsAuto ? '0' : String(cfg.kbps);
     if (![...$('p-bitrate').options].some((o) => o.value === $('p-bitrate').value)) { const o = document.createElement('option'); o.value = String(cfg.kbps); o.textContent = `${(cfg.kbps / 1000).toFixed(1)} Mbps`; $('p-bitrate').appendChild(o); $('p-bitrate').value = o.value; }
     showActual();
   }
   const guard = (fn) => async (e) => { const el = e.target; el.disabled = true; try { await fn(el.value); } catch (err) { toast(`Couldn’t switch: ${err.name || err.message}`); fillDevices(); } finally { el.disabled = false; } };
+  $('p-theme').onchange = (e) => setTheme(e.target.value);
   $('p-cam').onchange = guard(switchCamera);
   $('p-mic').onchange = guard(switchMic);
   $('p-spk').onchange = guard(switchSpeaker);
@@ -544,6 +644,7 @@ async function portal() {
     if (e.target.closest?.('select, input, textarea')) return; // typing in the panel isn't a shortcut
     const k = e.key.toLowerCase();
     if (k === 'd') return toggleSettings();
+    if (k === 't') return cycleTheme();
     if (k === 'escape' && document.body.classList.contains('show-settings')) return toggleSettings();
     if (k === 'm') toggleMic(); else if (k === 'v') toggleCam(); else if (e.key === ']') nudgeSync(20); else if (e.key === '[') nudgeSync(-20); else if (e.key === '\\') { cfg.avsync = 20; nudgeSync(-20); } else if (k === 'h') toggleSelf(); else if (k === 's') toggleStats(); else if (k === 'f') toggleFs();
   });
