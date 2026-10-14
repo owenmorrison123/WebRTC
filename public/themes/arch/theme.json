@@ -1,0 +1,22 @@
+{
+  "name": "Doorway arch",
+  "order": 20,
+  "shape": "arch",
+  "inset": 3.5,
+  "radius": 18,
+  "archRise": 0.4,
+  "border": {
+    "width": 12,
+    "gradient": "linear-gradient(160deg, #e8d9bd 0%, #b59f7e 45%, #7d6a52 100%)"
+  },
+  "glow": {
+    "color": "rgba(255,214,150,0.30)",
+    "size": 70
+  },
+  "background": "radial-gradient(ellipse at 50% 30%, #2a2219 0%, #0d0a07 80%)",
+  "accent": "#e8c58f",
+  "selfView": {
+    "radius": 14,
+    "border": "#c8b392"
+  }
+}
