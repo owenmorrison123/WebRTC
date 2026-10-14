@@ -24,10 +24,14 @@
   #frame::after { content:''; position:absolute; inset:0; border-radius:inherit; box-shadow:var(--t-glow, none); pointer-events:none; }
   #frame.pulse::after { animation:glowpulse 3s ease-in-out infinite; }
   #stage { position:relative; width:100%; height:100%; overflow:hidden; background:#000; isolation:isolate; }
+  #stage::after { content:''; position:absolute; inset:0; border-radius:inherit; box-shadow:inset 0 0 0 var(--t-inner-w, 0px) var(--t-inner-c, transparent); pointer-events:none; z-index:1; }
   #remote { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#000; }
   #remote.live { animation:portalopen .7s ease-out; }
   body.fit-contain #remote { object-fit:contain; }
   #art { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; display:none; }
+  #logo { position:absolute; display:none; align-items:center; pointer-events:none; box-sizing:border-box; }
+  #logo img { display:block; height:100%; width:auto; max-width:40vw; object-fit:contain; }
+  #logo span { font-weight:700; letter-spacing:.04em; white-space:nowrap; line-height:1; }
   #local { position:absolute; right:20px; bottom:20px; width:min(22vw,320px); aspect-ratio:16/9; object-fit:cover; border-radius:10px;
            transform:scaleX(-1); box-shadow:0 4px 24px rgba(0,0,0,.6); border:2px solid rgba(255,255,255,.15); background:#111; transition:opacity .3s; }
   body.no-self #local { display:none; }
@@ -138,6 +142,7 @@
 <section id="portal">
   <div id="frame"><div id="stage"><video id="remote" autoplay playsinline></video></div></div>
   <img id="art" alt="">
+  <div id="logo"></div>
   <video id="local" autoplay muted playsinline></video>
   <div id="label"><span id="dot"></span><span id="label-text">Connecting…</span></div>
   <pre id="stats"></pre>
