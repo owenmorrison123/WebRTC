@@ -12,7 +12,7 @@
   body.hide-cursor, body.hide-cursor * { cursor:none !important; }
 
   /* ---------- portal ---------- */
-  #portal { position:fixed; inset:0; display:none; }
+  #portal { position:fixed; inset:0; display:none; container-type:size; overflow:hidden; transform-origin:50% 50%; }
   /* Theme frame: #frame is the border (its background shows through its padding), #stage clips the video.
      Geometry (position, size, corner shape) is set by applyTheme() in app.js. */
   @property --spin { syntax:'<angle>'; inherits:true; initial-value:0deg; }
@@ -30,9 +30,9 @@
   body.fit-contain #remote { object-fit:contain; }
   #art { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; display:none; }
   #logo { position:absolute; display:none; align-items:center; pointer-events:none; box-sizing:border-box; }
-  #logo img { display:block; height:100%; width:auto; max-width:40vw; object-fit:contain; }
+  #logo img { display:block; height:100%; width:auto; max-width:40cqw; object-fit:contain; }
   #logo span { font-weight:700; letter-spacing:.04em; white-space:nowrap; line-height:1; }
-  #local { position:absolute; right:20px; bottom:20px; width:min(22vw,320px); aspect-ratio:16/9; object-fit:cover; border-radius:10px;
+  #local { position:absolute; right:20px; bottom:20px; width:min(22cqw,320px); aspect-ratio:16/9; object-fit:cover; border-radius:10px;
            transform:scaleX(-1); box-shadow:0 4px 24px rgba(0,0,0,.6); border:2px solid rgba(255,255,255,.15); background:#111; transition:opacity .3s; }
   body.no-self #local { display:none; }
   #label { position:absolute; left:20px; top:16px; display:flex; align-items:center; gap:10px; padding:6px 12px; border-radius:999px; background:var(--panel); font-weight:600; letter-spacing:.02em; }
@@ -40,8 +40,8 @@
   #dot.ok { background:var(--ok); } #dot.bad { background:var(--bad); }
   #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; background:var(--t-wait, radial-gradient(ellipse at center,#0b1520 0%,#05070a 70%)); text-align:center; padding:24px; transition:opacity .6s; }
   #overlay.hidden { opacity:0; pointer-events:none; }
-  #overlay h1 { margin:0; font-size:clamp(28px,4vw,56px); font-weight:300; }
-  #overlay p { margin:0; color:var(--muted); font-size:clamp(15px,1.6vw,22px); }
+  #overlay h1 { margin:0; font-size:clamp(28px,4cqw,56px); font-weight:300; }
+  #overlay p { margin:0; color:var(--muted); font-size:clamp(15px,1.6cqw,22px); }
   .ring { width:90px; height:90px; border-radius:50%; border:3px solid rgba(56,189,248,.2); border-top-color:var(--accent); animation:spin 1.4s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
   #tap { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); font-size:24px; z-index:5; cursor:pointer; }
@@ -55,7 +55,7 @@
   #stats b { color:var(--accent); font-weight:600; }
   #toast { position:absolute; left:50%; top:24px; transform:translateX(-50%); padding:10px 16px; border-radius:10px; background:var(--panel); font-weight:600; opacity:0; transition:opacity .3s; pointer-events:none; z-index:6; }
   #toast.show { opacity:1; }
-  #settings { position:absolute; right:20px; bottom:90px; width:min(340px, calc(100vw - 32px)); max-height:calc(100vh - 120px); overflow:auto; padding:16px; border-radius:14px; background:rgba(10,14,20,.94); border:1px solid #263241; z-index:7; display:none; }
+  #settings { position:absolute; right:20px; bottom:90px; width:min(340px, calc(100cqw - 32px)); max-height:calc(100cqh - 120px); overflow:auto; padding:16px; border-radius:14px; background:rgba(10,14,20,.94); border:1px solid #263241; z-index:7; display:none; }
   body.show-settings #settings { display:block; }
   #settings h3 { margin:0 0 8px; font-size:16px; }
   #settings label { display:block; margin-top:10px; font-size:12px; color:var(--muted); }
@@ -82,10 +82,11 @@
   #setup button { padding:11px 18px; border-radius:10px; border:0; font:inherit; font-weight:600; cursor:pointer; background:#1d2733; color:var(--fg); }
   #setup button.primary { background:var(--accent); color:#04121c; }
   #setup button:disabled { opacity:.4; cursor:not-allowed; }
+  #setup .hint { margin:10px 0 0; color:var(--muted); font-size:13px; }
   .keystat { min-height:18px; margin-top:6px; font-size:13px; }
   .keystat.ok { color:var(--ok); } .keystat.bad { color:var(--bad); }
   #ov-key { display:none; gap:8px; flex-wrap:wrap; justify-content:center; }
-  #ov-key input { padding:12px 14px; border-radius:10px; border:1px solid #263241; background:#070b10; color:var(--fg); font:16px ui-monospace,Menlo,Consolas,monospace; width:min(80vw,320px); }
+  #ov-key input { padding:12px 14px; border-radius:10px; border:1px solid #263241; background:#070b10; color:var(--fg); font:16px ui-monospace,Menlo,Consolas,monospace; width:min(80cqw,320px); }
   #ov-key button { padding:12px 18px; border-radius:10px; border:0; background:var(--accent); color:#04121c; font:inherit; font-weight:600; cursor:pointer; }
   @media (max-width:560px) { #setup .row { grid-template-columns:1fr; } #local { width:34vw; right:12px; bottom:12px; } }
 </style>
@@ -124,6 +125,13 @@
       <div><label for="s-codec">Video codec</label>
         <select id="s-codec"><option value="">Auto</option><option>VP8</option><option>H264</option><option>VP9</option><option>AV1</option></select></div>
     </div>
+    <div class="row">
+      <div><label for="s-orient">Orientation</label>
+        <select id="s-orient"><option value="">Auto (match the screen)</option><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></div>
+      <div><label for="s-rotate">Rotate picture</label>
+        <select id="s-rotate"><option value="0">No rotation</option><option value="90">90° clockwise</option><option value="270">90° counter-clockwise</option></select></div>
+    </div>
+    <p class="hint">Turning a TV on its side? If the computer can set its display to portrait, do that and leave rotation off. If it can't, choose Portrait and the rotation that makes the picture upright. You can also press <b>R</b> in the portal to try each one. On a normal landscape screen, Portrait shows a centered preview of how the portal will look.</p>
     <div class="checks">
       <label><input type="checkbox" id="s-self" checked> Show self-view</label>
       <label><input type="checkbox" id="s-contain"> Letterbox (don't crop)</label>
@@ -152,6 +160,10 @@
   <div id="settings">
     <h3>Settings</h3>
     <label>Theme<select id="p-theme"></select></label>
+    <div class="prow">
+      <label>Orientation<select id="p-orient"><option value="">Auto</option><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></label>
+      <label>Rotate<select id="p-rotate"><option value="0">None</option><option value="90">90° clockwise</option><option value="270">90° counter-clockwise</option></select></label>
+    </div>
     <label>Camera<select id="p-cam"></select></label>
     <label>Microphone<select id="p-mic"></select></label>
     <label>Speaker<select id="p-spk"></select></label>
