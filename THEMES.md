@@ -21,7 +21,7 @@ Every field is optional; anything left out uses the default.
 |---|---|---|
 | `name` | folder name | Name shown in the Theme list |
 | `order` | `50` | Position in the list; lower comes first |
-| `shape` | `"rect"` | `"rect"`, `"rounded"`, `"circle"` or `"arch"` |
+| `shape` | `"rect"` | `"rect"`, `"rounded"`, `"circle"`, `"oval"` (an ellipse filling the portal, like a mirror) or `"arch"` |
 | `inset` | `0` | Gap between the screen edge and the portal, as a **percentage of the shorter screen side**. `3` is a good start |
 | `radius` | `0` | Corner radius in px for `rounded`, and for the bottom corners of `arch` |
 | `archRise` | `0.4` | `arch` only: how tall the curved top can be, as a fraction of the portal's height. On portrait screens the top is always a true half-circle |
@@ -53,6 +53,20 @@ Every field is optional; anything left out uses the default.
 | `selfView.shape` | rounded | `"rounded"`, `"rect"` or `"circle"` for your own small video |
 | `selfView.radius` | `10` | Corner radius in px for the self-view |
 | `selfView.border` | faint white | Self-view border color |
+
+### Different looks for portrait and landscape
+
+Any field can be overridden for one orientation by putting it in a `"portrait"` or `"landscape"` block. The block is used whenever the portal is in that orientation, including on a TV turned on its side. For example, `mirror` is a full-screen oval on a portrait TV, and a 3:4 oval hanging on a wall on a landscape screen:
+
+```json
+{
+  "shape": "oval",
+  "inset": 4,
+  "landscape": { "aspect": "3:4", "inset": 5 }
+}
+```
+
+Nested sections (`border`, `glow`, `logo`, `selfView`) are merged, so `"portrait": { "logo": { "size": 3.5 } }` changes only the logo size. Overlay artwork usually needs one image per orientation: `"overlay": "frame.png", "portrait": { "overlay": "frame-portrait.png" }`.
 
 File names and `url(...)` values are relative to the theme's folder, so `"overlay": "frame.png"` means `public/themes/<your-theme>/frame.png`.
 
@@ -93,6 +107,7 @@ Use an overlay when the border should look like real artwork, such as carved woo
 |---|---|
 | (none) | Full screen, no border |
 | `harlaxton` | Honey-stone arch with block lines, Harlaxton College badge |
+| `mirror` | Gilded oval mirror; full-height in portrait, hanging on a dark wall in landscape |
 | `evansville` | UE purple frame with an orange inner line, University of Evansville badge |
 | `rounded` | Rounded window with a soft blue glow |
 | `arch` | Stone-colored doorway arch |
@@ -102,4 +117,4 @@ Use an overlay when the border should look like real artwork, such as carved woo
 
 ## Testing a theme
 
-Run the portal locally with `npm start`, then open `http://localhost:8080/?room=test&theme=<id>` in two tabs. Press **T** to cycle themes. Resize the window, or try a portrait window, to check that the border holds up at different shapes.
+Run the portal locally with `npm start`, then open `http://localhost:8080/?room=test&theme=<id>` in two tabs. Press **T** to cycle themes. Press **O** to switch between landscape and a portrait preview, to check that the border holds up in both.
