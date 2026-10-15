@@ -61,11 +61,28 @@ Allow camera and mic once ("Remember this decision") and turn off OS sleep and s
 | **H** | Show/hide your own video (self-view) |
 | **D** | Settings: switch camera, mic, speaker; change resolution, frame rate, bitrate, theme |
 | **T** | Cycle through themes (borders) |
+| **O** | Cycle orientation: auto, landscape, portrait |
+| **R** | Cycle picture rotation (for a TV on its side) |
 | **]** / **[** | Lip-sync trim: delay audio / delay video by 20 ms per press |
 | **\\** | Reset lip-sync trim to automatic |
 | **F** or double-click | Fullscreen |
 
 Moving the mouse shows a toolbar. The cursor hides after 3 s.
+
+### Orientation (portrait TVs)
+
+Pick **Orientation** and **Rotate picture** on the setup page, or later in **Settings**:
+
+| Your screen | Orientation | Rotate picture |
+|---|---|---|
+| Laptop, iPad or TV the normal way | Auto or Landscape | No rotation |
+| TV on its side, computer's display set to portrait | Auto or Portrait | No rotation |
+| TV on its side, computer still outputs landscape (common with mini PCs and TV sticks) | Portrait | 90° clockwise **or** counter-clockwise, whichever makes the picture upright (press **R** to try) |
+| Laptop, to preview how the portrait portal will look | Portrait | No rotation (shows a centered 9:16 preview) |
+
+Each portal tells the other the shape it's showing, and the camera on the other side crops to match. A tall portal gets a tall picture using the camera's full height, not a thin strip cut from a widescreen image. With a standard 1080p webcam, a portrait portal receives about 608×1080, so set **Resolution: 1080p** in Settings on the sending side for the sharpest portrait picture. Press **S** to see the **Shape** line.
+
+For a life-size portal, mount the camera at eye level, centered just above (or beside) the TV, and use a theme with a curved shape: **Oval mirror**, **Harlaxton Manor** (arch) or **Rounded window**.
 
 ### Themes
 
@@ -92,6 +109,8 @@ Each site's settings control the video it **sends**. To make the England feed sh
 | `avsync` | `0` | Lip-sync trim in ms: positive delays audio, negative delays video (set by **]** / **[**) |
 | `autosync=0` | — | Turn off automatic lip sync |
 | `relay=1` | — | Force all traffic through the TURN relay (for testing) |
+| `orient` | auto | `landscape` or `portrait` |
+| `rotate` | `0` | `90` or `270`: rotate the whole portal for a TV on its side |
 | `cam` / `mic` / `spk` | default | Device IDs (the setup page fills these) |
 | `self=0` | — | Start with self-view hidden (toggle any time with **H** or the toolbar) |
 | `fit=contain` | — | Letterbox instead of crop-to-fill |
