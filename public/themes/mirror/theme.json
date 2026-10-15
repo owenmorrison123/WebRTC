@@ -1,0 +1,17 @@
+{
+  "name": "Oval mirror",
+  "order": 3,
+  "shape": "oval",
+  "inset": 4,
+  "border": {
+    "width": 30,
+    "gradient": "linear-gradient(160deg, #f7e7b4 0%, #d4ad5a 25%, #9c7330 50%, #e8c877 72%, #8a6327 100%)",
+    "innerWidth": 4,
+    "innerColor": "rgba(60,40,10,0.7)"
+  },
+  "glow": { "color": "rgba(255,215,140,0.35)", "size": 90, "pulse": true },
+  "background": "radial-gradient(ellipse at 50% 40%, #23302a 0%, #101814 60%, #070b09 100%)",
+  "accent": "#e8c877",
+  "selfView": { "shape": "circle", "border": "#d4ad5a" },
+  "landscape": { "aspect": "3:4", "inset": 5 }
+}
