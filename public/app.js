@@ -30,8 +30,37 @@ const themeUrl = (base, u) => (/^(data:|https?:|\/)/.test(u) ? u : base + u);
 const themeCss = (base, v) => (typeof v === 'string' ? v.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (m, q, u) => `url("${themeUrl(base, u.trim())}")`) : v);
 const parseAspect = (a) => { if (!a) return null; if (typeof a === 'number') return a; const [w, h] = String(a).split(/[:/x]/).map(Number); return w > 0 && h > 0 ? w / h : null; };
 
-let activeTheme = null;
-function applyTheme(theme) {
+/* ---------- Orientation ----------
+   view.orient: '' (auto: follow the screen), 'landscape' or 'portrait'.
+   view.rotate: 0, 90 or 270 — rotates the whole portal for a TV turned on its side when the computer
+   can't rotate its own display output. The portal's "canvas" is the upright area everything is laid out in:
+   with rotation it is the screen with width and height swapped; when the forced orientation doesn't match
+   the screen (e.g. Portrait on a laptop), it is a centered 9:16 (or 16:9) preview box. */
+const view = { orient: '', rotate: 0 };
+let canvas = { W: window.innerWidth, H: window.innerHeight };
+const isPortrait = () => canvas.H > canvas.W;
+function layoutCanvas() {
+  const el = $('portal'); if (!el) return;
+  const vw = window.innerWidth, vh = window.innerHeight, rot = view.rotate === 90 || view.rotate === 270;
+  let W = rot ? vh : vw, H = rot ? vw : vh;
+  if (view.orient === 'portrait' && W > H) W = Math.round(H * 9 / 16);
+  else if (view.orient === 'landscape' && H > W) H = Math.round(W * 9 / 16);
+  canvas = { W, H };
+  Object.assign(el.style, { inset: 'auto', left: `${(vw - W) / 2}px`, top: `${(vh - H) / 2}px`, width: `${W}px`, height: `${H}px`, transform: view.rotate ? `rotate(${view.rotate}deg)` : '' });
+}
+
+let activeTheme = null, rawTheme = null;
+// A theme can carry "portrait": {...} and "landscape": {...} blocks that override its fields in that orientation.
+function themeFor(theme, orient) {
+  const ov = theme?.[orient];
+  if (!ov) return theme;
+  const sub = (k) => (ov[k] === null ? null : ov[k] === undefined ? theme[k] : { ...(theme[k] || {}), ...ov[k] });
+  return { ...theme, ...ov, border: sub('border'), glow: sub('glow'), logo: sub('logo'), selfView: sub('selfView') };
+}
+function applyTheme(raw) { rawTheme = raw || null; renderTheme(); }
+function renderTheme() {
+  layoutCanvas();
+  const theme = themeFor(rawTheme, isPortrait() ? 'portrait' : 'landscape');
   const base = theme?.base || '';
   const t = { ...THEME_DEFAULTS, ...(theme || {}) };
   t.border = { ...THEME_DEFAULTS.border, ...(theme?.border || {}) };
@@ -76,14 +105,14 @@ function applyTheme(theme) {
   local.style.borderColor = sv.border || '';
   local.style.borderRadius = sv.shape === 'circle' ? '50%' : sv.shape === 'rect' ? '0' : sv.radius != null ? `${sv.radius}px` : '';
   local.style.aspectRatio = sv.shape === 'circle' ? '1 / 1' : '';
-  local.style.width = sv.shape === 'circle' ? 'min(16vw, 220px)' : '';
+  local.style.width = sv.shape === 'circle' ? 'min(16cqw, 220px)' : '';
   layoutFrame();
 }
 // Position and shape the frame for the current screen size (called on apply and on every resize).
 function layoutFrame() {
   const t = activeTheme || THEME_DEFAULTS, frame = $('frame'), stage = $('stage');
   if (!frame) return;
-  const W = window.innerWidth, H = window.innerHeight;
+  const W = canvas.W, H = canvas.H;
   const m = (Number(t.inset) || 0) / 100 * Math.min(W, H);
   const aspect = t.shape === 'circle' ? 1 : parseAspect(t.aspect);
   let w = W - 2 * m, h = H - 2 * m;
@@ -91,7 +120,7 @@ function layoutFrame() {
   const bw = Math.max(0, Number(t.border.width) || 0), R = Math.max(0, Number(t.radius) || 0);
   let outer = '0', inner = '0';
   if (t.shape === 'rounded') { outer = `${R}px`; inner = `${Math.max(R - bw, 0)}px`; }
-  else if (t.shape === 'circle') { outer = inner = '50%'; }
+  else if (t.shape === 'circle' || t.shape === 'oval') { outer = inner = '50%'; }
   else if (t.shape === 'arch') {
     // Top is a half-ellipse: as wide as the frame, rising at most archRise × height. On a portrait
     // screen that is a true round doorway arch; on a landscape screen it flattens into an arched window.
@@ -102,6 +131,8 @@ function layoutFrame() {
   }
   Object.assign(frame.style, { inset: 'auto', left: `${(W - w) / 2}px`, top: `${(H - h) / 2}px`, width: `${w}px`, height: `${h}px`, padding: `${bw}px`, borderRadius: outer });
   stage.style.borderRadius = inner;
+  stageAspect = Math.max(w - 2 * bw, 1) / Math.max(h - 2 * bw, 1);
+  onStageShape?.();
 
   // Corner logo: sized as a % of the shorter screen side; anchored inside the portal ("frame", default)
   // or to the screen edge ("screen", better for circles).
@@ -119,7 +150,8 @@ function layoutFrame() {
     const sp = logo.querySelector('span'); if (sp) sp.style.fontSize = `${size * 0.62}px`;
   }
 }
-window.addEventListener('resize', () => layoutFrame());
+let stageAspect = 16 / 9, onStageShape = null; // the portal calls onStageShape to tell the other side
+window.addEventListener('resize', () => renderTheme());
 
 if (!Q.get('room')) setup(); else portal();
 
@@ -155,6 +187,8 @@ async function setup() {
     if (f('s-spk').value) p.set('spk', f('s-spk').value);
     if (f('s-codec').value) p.set('codec', f('s-codec').value);
     if (f('s-theme').value) p.set('theme', f('s-theme').value);
+    if (f('s-orient').value) p.set('orient', f('s-orient').value);
+    if (f('s-rotate').value !== '0') p.set('rotate', f('s-rotate').value);
     if (!f('s-self').checked) p.set('self', '0');
     if (f('s-contain').checked) p.set('fit', 'contain');
     if (f('s-stats').checked) p.set('stats', '1');
@@ -216,6 +250,18 @@ async function portal() {
   if (Q.get('fit') === 'contain') document.body.classList.add('fit-contain');
   if (Q.get('stats') === '1') document.body.classList.add('show-stats');
 
+  // ---------- Orientation ----------
+  view.orient = ['landscape', 'portrait'].includes(Q.get('orient')) ? Q.get('orient') : '';
+  view.rotate = [90, 270].includes(Number(Q.get('rotate'))) ? Number(Q.get('rotate')) : 0;
+  function setView(orient, rotate) {
+    view.orient = orient; view.rotate = rotate;
+    setParam('orient', orient || null); setParam('rotate', rotate || null);
+    renderTheme();
+    toast(`${orient ? orient[0].toUpperCase() + orient.slice(1) : 'Auto orientation'}${rotate ? ` · rotated ${rotate === 90 ? '90° clockwise' : '90° counter-clockwise'}` : ''}`);
+  }
+  const cycleOrient = () => setView({ '': 'landscape', landscape: 'portrait', portrait: '' }[view.orient], view.rotate);
+  const cycleRotate = () => setView(view.rotate === 0 ? 'portrait' : view.orient, { 0: 90, 90: 270, 270: 0 }[view.rotate]);
+
   // ---------- Theme ----------
   const themes = await loadThemes();
   cfg.theme = Q.get('theme') || '';
@@ -272,8 +318,38 @@ async function portal() {
   }, 6 * 3600 * 1000);
 
   // ---------- Local media ----------
-  const videoShape = () => ({ width: { ideal: cfg.preset.w }, height: { ideal: cfg.preset.h }, frameRate: { ideal: cfg.fps, max: cfg.fps } });
-  const videoConstraints = (exact) => ({ ...videoShape(), ...(cfg.cam ? { deviceId: exact ? { exact: cfg.cam } : { ideal: cfg.cam } } : {}) });
+  // The other site tells us the shape of its portal (wide, tall, round...). We capture that shape so its
+  // screen gets a full-resolution picture instead of cropping a strip out of a widescreen one.
+  let remoteAspect = null;
+  const videoShape = () => {
+    const a = remoteAspect ? Math.min(16 / 9, Math.max(9 / 16, remoteAspect)) : 16 / 9;
+    if (Math.abs(Math.log(a / (16 / 9))) < 0.06) return { width: { ideal: cfg.preset.w }, height: { ideal: cfg.preset.h }, frameRate: { ideal: cfg.fps, max: cfg.fps } };
+    // Crop from the camera's full height (cameras are landscape), so a tall portal gets every pixel of height.
+    const h = cfg.preset.h, w = Math.round(h * a);
+    return { width: { exact: w }, height: { exact: h }, resizeMode: 'crop-and-scale', frameRate: { ideal: cfg.fps, max: cfg.fps } };
+  };
+  // Same shape, but with "ideal" sizes: used to open a camera (any camera opens), and as the fallback
+  // when a camera can't produce the exact crop.
+  const softShape = () => { const v = videoShape(); for (const k of ['width', 'height']) if (v[k]?.exact) v[k] = { ideal: v[k].exact }; return v; };
+  async function applyShape(vt) {
+    try { await vt.applyConstraints(videoShape()); return true; }
+    catch { try { await vt.applyConstraints(softShape()); return true; } catch (e) { console.warn('capture shape', e.message); return false; } }
+  }
+  async function adaptCapture() {
+    const vt = localStream?.getVideoTracks()[0];
+    if (!vt) return;
+    await applyShape(vt);
+    tuneSenders(); showActual?.();
+  }
+  // Tell the other side our portal's shape (on connect, and whenever the layout changes).
+  let sentAspect = null, shapeTimer;
+  const sendView = (force) => {
+    if (!pc || pc.connectionState !== 'connected') return;
+    if (!force && sentAspect && Math.abs(stageAspect / sentAspect - 1) < 0.02) return;
+    sentAspect = stageAspect; signal({ view: { aspect: Math.round(stageAspect * 1000) / 1000 } });
+  };
+  onStageShape = () => { clearTimeout(shapeTimer); shapeTimer = setTimeout(() => sendView(false), 400); };
+  const videoConstraints = (exact) => ({ ...softShape(), ...(cfg.cam ? { deviceId: exact ? { exact: cfg.cam } : { ideal: cfg.cam } } : {}) });
   const audioConstraints = (exact) => ({
     echoCancellation: true, noiseSuppression: true, autoGainControl: true,
     channelCount: 1, sampleRate: 48000,
@@ -349,7 +425,8 @@ async function portal() {
   };
   async function switchCamera(id) {
     cfg.cam = id || null; setParam('cam', id);
-    await swapTrack('video', async () => (await navigator.mediaDevices.getUserMedia({ video: videoConstraints(true) })).getVideoTracks()[0]);
+    const nt = await swapTrack('video', async () => (await navigator.mediaDevices.getUserMedia({ video: videoConstraints(true) })).getVideoTracks()[0]);
+    await applyShape(nt);
     tuneSenders(); showActual();
     toast('Camera switched');
   }
@@ -368,8 +445,7 @@ async function portal() {
     cfg.kbpsAuto = !Number(kbps); cfg.kbps = Number(kbps) || autoKbps(cfg.preset, cfg.fps);
     setParam('res', cfg.res); setParam('fps', cfg.fps === 30 ? null : cfg.fps); setParam('bitrate', cfg.kbpsAuto ? null : cfg.kbps);
     const vt = localStream.getVideoTracks()[0];
-    try { await vt.applyConstraints(videoShape()); }
-    catch { await swapTrack('video', async () => (await navigator.mediaDevices.getUserMedia({ video: videoConstraints(true) })).getVideoTracks()[0]); }
+    if (!(await applyShape(vt))) await applyShape(await swapTrack('video', async () => (await navigator.mediaDevices.getUserMedia({ video: videoConstraints(true) })).getVideoTracks()[0]));
     await tuneSenders(); showActual();
     toast(`${cfg.res}p · ${cfg.fps} fps · up to ${(cfg.kbps / 1000).toFixed(1)} Mbps`);
   }
@@ -475,6 +551,7 @@ async function portal() {
         clearTimeout(watchdog); watchdog = null;
         status('', '', false);
         setDot('ok', peerLabel || 'Connected');
+        sendView(true);
         tuneSenders();
       } else if (s === 'disconnected') {
         setDot('bad', 'Connection unstable…');
@@ -511,6 +588,7 @@ async function portal() {
   }
 
   async function onSignal(data) {
+    if (data.view) { remoteAspect = Number(data.view.aspect) || null; return adaptCapture(); }
     if (data.reset) { if (data.gen > gen) { gen = data.gen; rebuild(); } return; }
     if (data.gen !== gen || !pc) return; // stale message from an older connection
     const { description, candidate } = data;
@@ -651,12 +729,15 @@ async function portal() {
     const th = $('p-theme'); th.innerHTML = '';
     [{ id: '', name: 'Full screen (no border)' }, ...themes].forEach((t) => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; th.appendChild(o); });
     th.value = cfg.theme;
+    $('p-orient').value = view.orient; $('p-rotate').value = String(view.rotate);
     $('p-res').value = cfg.res; $('p-fps').value = String(cfg.fps); $('p-bitrate').value = cfg.kbpsAuto ? '0' : String(cfg.kbps);
     if (![...$('p-bitrate').options].some((o) => o.value === $('p-bitrate').value)) { const o = document.createElement('option'); o.value = String(cfg.kbps); o.textContent = `${(cfg.kbps / 1000).toFixed(1)} Mbps`; $('p-bitrate').appendChild(o); $('p-bitrate').value = o.value; }
     showActual();
   }
   const guard = (fn) => async (e) => { const el = e.target; el.disabled = true; try { await fn(el.value); } catch (err) { toast(`Couldn’t switch: ${err.name || err.message}`); fillDevices(); } finally { el.disabled = false; } };
   $('p-theme').onchange = (e) => setTheme(e.target.value);
+  $('p-orient').onchange = (e) => setView(e.target.value, view.rotate);
+  $('p-rotate').onchange = (e) => setView(view.orient, Number(e.target.value));
   $('p-cam').onchange = guard(switchCamera);
   $('p-mic').onchange = guard(switchMic);
   $('p-spk').onchange = guard(switchSpeaker);
@@ -673,6 +754,8 @@ async function portal() {
     const k = e.key.toLowerCase();
     if (k === 'd') return toggleSettings();
     if (k === 't') return cycleTheme();
+    if (k === 'o') return cycleOrient();
+    if (k === 'r') return cycleRotate();
     if (k === 'escape' && document.body.classList.contains('show-settings')) return toggleSettings();
     if (k === 'm') toggleMic(); else if (k === 'v') toggleCam(); else if (e.key === ']') nudgeSync(20); else if (e.key === '[') nudgeSync(-20); else if (e.key === '\\') { cfg.avsync = 20; nudgeSync(-20); } else if (k === 'h') toggleSelf(); else if (k === 's') toggleStats(); else if (k === 'f') toggleFs();
   });
@@ -739,7 +822,8 @@ async function portal() {
     const codec = inV?.codecId && by[inV.codecId]?.mimeType?.split('/')[1];
     const f = (v, u = '', dp = 0) => (v == null || isNaN(v) ? '–' : v.toFixed(dp) + u);
     $('stats').innerHTML =
-`<b>Path</b>        ${path}${cfg.relay ? ' (forced)' : ''}
+`<b>Shape</b>       ${isPortrait() ? 'portrait' : 'landscape'}${view.rotate ? ` (rotated ${view.rotate}°)` : ''} · other side wants ${remoteAspect ? (remoteAspect < 1 ? 'tall' : remoteAspect > 1.1 ? 'wide' : 'square') + ' ' + remoteAspect.toFixed(2) : '–'}
+<b>Path</b>        ${path}${cfg.relay ? ' (forced)' : ''}
 <b>Relay</b>       ${turnAvailable ? 'TURN configured' : 'STUN only (no relay)'}
 <b>RTT</b>         ${f(rtt, ' ms')}
 <b>Est. delay</b>  ~${f(est, ' ms')} one-way
