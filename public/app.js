@@ -294,8 +294,6 @@ async function setup() {
       }
     }
   };
-  const setOrient = (o) => { f('s-orient').value = o; document.querySelectorAll('#s-orient-seg button').forEach((b) => b.classList.toggle('on', b.dataset.orient === (o || 'landscape'))); };
-  document.querySelectorAll('#s-orient-seg button').forEach((b) => (b.onclick = () => { setOrient(b.dataset.orient === 'landscape' ? '' : 'portrait'); build(); }));
 
   // Campus choice: fills in the name and a matching frame (unless someone already changed them).
   const CAMPUS = {
@@ -344,14 +342,13 @@ async function setup() {
     return url;
   };
   // Restore the last setup used on this computer (or a ?key= in the setup link).
-  for (const [id, k] of [['s-room', 'room'], ['s-key', 'key'], ['s-label', 'label'], ['s-res', 'res'], ['s-fps', 'fps'], ['s-bitrate', 'bitrate'], ['s-codec', 'codec'], ['s-rotate', 'rotate'], ['s-theme', 'theme']]) {
+  for (const [id, k] of [['s-room', 'room'], ['s-key', 'key'], ['s-label', 'label'], ['s-res', 'res'], ['s-fps', 'fps'], ['s-bitrate', 'bitrate'], ['s-codec', 'codec'], ['s-rotate', 'rotate'], ['s-theme', 'theme'], ['s-orient', 'orient']]) {
     if (saved[k] == null) continue;
     if (f(id).tagName !== 'SELECT' || [...f(id).options].some((o) => o.value === String(saved[k]))) f(id).value = saved[k];
   }
   for (const [id, k] of [['s-cam', 'cam'], ['s-mic', 'mic'], ['s-spk', 'spk']]) if (saved[k] && [...f(id).options].some((o) => o.value === saved[k])) f(id).value = saved[k];
   for (const [id, k] of [['s-self', 'self'], ['s-clocks', 'clocks'], ['s-contain', 'contain'], ['s-stats', 'stats']]) if (saved[k] != null) f(id).checked = saved[k];
   if (Q.get('key')) f('s-key').value = Q.get('key');
-  setOrient(saved.orient || '');
   pickCampus(saved.campus || '', true);
   if (saved.cam || saved.mic) openMedia();
 

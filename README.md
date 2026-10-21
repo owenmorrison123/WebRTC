@@ -37,9 +37,9 @@ Open the site with no parameters to get the **setup page**. It walks through fou
 1. **Where is this screen?** Tap **University of Evansville** or **Harlaxton College**. This fills in the name the other campus sees and picks a matching frame.
 2. **Room key.** It's checked as you type, so typos show up right away.
 3. **Camera and microphone.** A live preview, a mic level bar that moves when you talk, and a **Play a test sound** button for the speaker.
-4. **How it looks.** One-tap frames, and **Normal (wide)** or **TV on its side (tall)**.
+4. **How it looks.** One-tap frames, plus **Orientation** and **Rotate picture** (see *Orientation* below).
 
-Then press **Start portal** and bookmark the page that opens (or set it as the browser's start page). The setup page remembers the last choices made on that computer. Room name, quality, codec and rotation are under **Advanced settings**.
+Then press **Start portal** and bookmark the page that opens (or set it as the browser's start page). The setup page remembers the last choices made on that computer. Room name, quality and codec are under **Advanced settings**.
 
 ### In the portal
 
