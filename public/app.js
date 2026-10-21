@@ -194,6 +194,14 @@ function layoutFrame() {
 let stageAspect = 16 / 9, onStageShape = null; // the portal calls onStageShape to tell the other side
 window.addEventListener('resize', () => renderTheme());
 
+// Both campus clocks. Used on the setup page and in the portal.
+const CLOCKS = [['Evansville', 'America/Chicago'], ['Harlaxton', 'Europe/London']];
+function clockParts() {
+  const now = new Date();
+  return CLOCKS.map(([name, tz]) => [name, now.toLocaleTimeString([], { timeZone: tz, hour: 'numeric', minute: '2-digit' }),
+    now.toLocaleDateString([], { timeZone: tz, weekday: 'short' })]);
+}
+
 if (!Q.get('room')) setup(); else portal();
 
 /* =====================================================================
@@ -202,18 +210,111 @@ if (!Q.get('room')) setup(); else portal();
 async function setup() {
   $('setup').style.display = 'block';
   const f = (id) => $(id);
-  let stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    f('s-preview').srcObject = stream;
-  } catch (e) { f('s-url').textContent = 'Camera/mic permission is needed to list devices: ' + e.message; }
+  const store = { get() { try { return JSON.parse(localStorage.getItem('portal-setup') || '{}'); } catch { return {}; } },
+    set(v) { try { localStorage.setItem('portal-setup', JSON.stringify(v)); } catch {} } };
+  const saved = store.get();
+
+  // Clocks
+  const tick = () => { const p = clockParts(); f('s-clock').innerHTML = p.map(([n, t, d]) => `<span>${n} <b>${t}</b> ${p[0][2] !== p[1][2] ? d : ''}</span>`).join(''); };
+  tick(); setInterval(tick, 15000);
+
+  // Camera + mic preview, with a live mic level bar.
+  let stream, actx, meterRaf;
+  const startMeter = () => {
+    cancelAnimationFrame(meterRaf);
+    const tr = stream?.getAudioTracks()[0]; if (!tr) return;
+    actx = actx || new AudioContext();
+    const an = actx.createAnalyser(); an.fftSize = 512;
+    actx.createMediaStreamSource(new MediaStream([tr])).connect(an);
+    const buf = new Uint8Array(an.fftSize); let heard = 0;
+    const loop = () => {
+      an.getByteTimeDomainData(buf);
+      let peak = 0; for (const v of buf) peak = Math.max(peak, Math.abs(v - 128));
+      const lvl = Math.min(1, peak / 64);
+      f('s-meter').style.width = `${Math.round(lvl * 100)}%`;
+      if (lvl > 0.25 && ++heard === 8) f('s-meter-help').textContent = '✓ We can hear you.';
+      meterRaf = requestAnimationFrame(loop);
+    };
+    loop();
+  };
+  const openMedia = async () => {
+    stream?.getTracks().forEach((t) => t.stop());
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: f('s-cam').value ? { deviceId: { exact: f('s-cam').value } } : true,
+        audio: f('s-mic').value ? { deviceId: { exact: f('s-mic').value } } : true,
+      });
+      f('s-preview').srcObject = stream; startMeter();
+    } catch (e) {
+      f('s-meter-help').textContent = `The browser couldn’t open the camera or mic (${e.name}). Allow access in the address bar, then reload.`;
+    }
+  };
+  await openMedia();
+  document.addEventListener('pointerdown', () => actx?.resume(), { once: true });
 
   const devs = await navigator.mediaDevices.enumerateDevices();
-  const fill = (sel, kind) => devs.filter((d) => d.kind === kind).forEach((d, i) => {
+  const fill = (sel, kind) => devs.filter((d) => d.kind === kind && d.deviceId !== 'default').forEach((d, i) => {
     const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || `${kind} ${i + 1}`; f(sel).appendChild(o);
   });
   fill('s-cam', 'videoinput'); fill('s-mic', 'audioinput'); fill('s-spk', 'audiooutput');
-  for (const t of await loadThemes()) { const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; f('s-theme').appendChild(o); }
+  if (!HTMLMediaElement.prototype.setSinkId) f('s-spk').disabled = true;
+
+  // Test sound through the chosen speaker.
+  f('s-test').onclick = async () => {
+    actx = actx || new AudioContext(); await actx.resume();
+    const dest = actx.createMediaStreamDestination(), g = actx.createGain();
+    g.connect(dest); g.gain.value = 0.0001;
+    const el = new Audio(); el.srcObject = dest.stream;
+    if (f('s-spk').value && el.setSinkId) try { await el.setSinkId(f('s-spk').value); } catch {}
+    el.play();
+    const t0 = actx.currentTime + 0.05;
+    [523.25, 659.25, 783.99].forEach((hz, i) => { const o = actx.createOscillator(); o.frequency.value = hz; o.connect(g); o.start(t0 + i * 0.18); o.stop(t0 + i * 0.18 + 0.16); });
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.25, t0 + 0.03); g.gain.setValueAtTime(0.25, t0 + 0.5); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.7);
+    setTimeout(() => el.pause(), 1200);
+  };
+
+  // Frames, as one-tap buttons grouped by campus (drives the hidden #s-theme select).
+  const themes = await loadThemes();
+  for (const t of themes) { const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; f('s-theme').appendChild(o); }
+  const drawFrames = () => {
+    const box = f('s-frames'); box.innerHTML = '';
+    const groups = new Map();
+    for (const t of [...themes, { id: '', name: 'Full screen (no frame)', group: 'Other' }]) { const g = t.group || 'Other'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(t); }
+    for (const g of [...groups.keys()].sort((a, b) => (a === 'Other') - (b === 'Other'))) {
+      const h = document.createElement('h4'); h.textContent = g; box.appendChild(h);
+      const grid = document.createElement('div'); grid.className = 'fgrid'; box.appendChild(grid);
+      for (const t of groups.get(g)) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = t.id === f('s-theme').value ? 'on' : '';
+        const sw = document.createElement('span'); sw.className = 'sw';
+        sw.style.background = themeCss(t.base || '', t.swatch || t.border?.gradient || t.border?.color || t.background || '#000');
+        if (!t.id) sw.style.border = '1px solid #3b4b5e';
+        const nm = document.createElement('span'); nm.textContent = t.name;
+        b.append(sw, nm); b.onclick = () => { f('s-theme').value = t.id; drawFrames(); build(); };
+        grid.appendChild(b);
+      }
+    }
+  };
+  const setOrient = (o) => { f('s-orient').value = o; document.querySelectorAll('#s-orient-seg button').forEach((b) => b.classList.toggle('on', b.dataset.orient === (o || 'landscape'))); };
+  document.querySelectorAll('#s-orient-seg button').forEach((b) => (b.onclick = () => { setOrient(b.dataset.orient === 'landscape' ? '' : 'portrait'); build(); }));
+
+  // Campus choice: fills in the name and a matching frame (unless someone already changed them).
+  const CAMPUS = {
+    ue: { label: 'University of Evansville', theme: 'ue-frame', accent: '#f47b20' },
+    hx: { label: 'Harlaxton College', theme: 'harlaxton-frame', accent: '#d9a5c3' },
+  };
+  let campus = '';
+  const pickCampus = (c, keep) => {
+    const prev = CAMPUS[campus]; campus = c; const cur = CAMPUS[c];
+    document.querySelectorAll('#setup .campus button').forEach((b) => b.classList.toggle('on', b.dataset.campus === c));
+    if (!cur) return;
+    document.getElementById('setup').style.setProperty('--accent', cur.accent);
+    if (!keep) {
+      if (!f('s-label').value || f('s-label').value === prev?.label) f('s-label').value = cur.label;
+      if (!f('s-theme').value || f('s-theme').value === prev?.theme) f('s-theme').value = cur.theme;
+    }
+    drawFrames(); build();
+  };
+  document.querySelectorAll('#setup .campus button').forEach((b) => (b.onclick = () => pickCampus(b.dataset.campus)));
 
   const build = () => {
     const p = new URLSearchParams();
@@ -231,17 +332,32 @@ async function setup() {
     if (f('s-orient').value) p.set('orient', f('s-orient').value);
     if (f('s-rotate').value !== '0') p.set('rotate', f('s-rotate').value);
     if (!f('s-self').checked) p.set('self', '0');
+    if (!f('s-clocks').checked) p.set('clocks', '0');
     if (f('s-contain').checked) p.set('fit', 'contain');
     if (f('s-stats').checked) p.set('stats', '1');
     const url = `${location.origin}${location.pathname}?${p}`;
     f('s-url').textContent = url;
+    store.set({ campus, room: f('s-room').value, key: f('s-key').value.trim(), label: f('s-label').value, res: f('s-res').value, fps: f('s-fps').value,
+      bitrate: f('s-bitrate').value, codec: f('s-codec').value, rotate: f('s-rotate').value, theme: f('s-theme').value, orient: f('s-orient').value,
+      cam: f('s-cam').value, mic: f('s-mic').value, spk: f('s-spk').value,
+      self: f('s-self').checked, clocks: f('s-clocks').checked, contain: f('s-contain').checked, stats: f('s-stats').checked });
     return url;
   };
+  // Restore the last setup used on this computer (or a ?key= in the setup link).
+  for (const [id, k] of [['s-room', 'room'], ['s-key', 'key'], ['s-label', 'label'], ['s-res', 'res'], ['s-fps', 'fps'], ['s-bitrate', 'bitrate'], ['s-codec', 'codec'], ['s-rotate', 'rotate'], ['s-theme', 'theme']]) {
+    if (saved[k] == null) continue;
+    if (f(id).tagName !== 'SELECT' || [...f(id).options].some((o) => o.value === String(saved[k]))) f(id).value = saved[k];
+  }
+  for (const [id, k] of [['s-cam', 'cam'], ['s-mic', 'mic'], ['s-spk', 'spk']]) if (saved[k] && [...f(id).options].some((o) => o.value === saved[k])) f(id).value = saved[k];
+  for (const [id, k] of [['s-self', 'self'], ['s-clocks', 'clocks'], ['s-contain', 'contain'], ['s-stats', 'stats']]) if (saved[k] != null) f(id).checked = saved[k];
+  if (Q.get('key')) f('s-key').value = Q.get('key');
+  setOrient(saved.orient || '');
+  pickCampus(saved.campus || '', true);
+  if (saved.cam || saved.mic) openMedia();
+
   document.querySelectorAll('#setup input, #setup select').forEach((el) => el.addEventListener('input', build));
-  f('s-cam').addEventListener('change', async () => {
-    stream?.getTracks().forEach((t) => t.stop());
-    try { stream = await navigator.mediaDevices.getUserMedia({ video: f('s-cam').value ? { deviceId: { exact: f('s-cam').value } } : true }); f('s-preview').srcObject = stream; } catch {}
-  });
+  f('s-cam').addEventListener('change', openMedia);
+  f('s-mic').addEventListener('change', openMedia);
   // Check the room key against the server as it's typed, so a typo shows up here, not on the kiosk.
   let keyTimer;
   const checkKey = () => {
@@ -252,15 +368,21 @@ async function setup() {
         const r = await fetch(`/config?key=${encodeURIComponent(f('s-key').value.trim())}`, { cache: 'no-store' });
         const ok = r.status !== 403;
         st.className = 'keystat ' + (ok ? 'ok' : 'bad');
-        st.textContent = ok ? '✓ Key accepted' : (f('s-key').value.trim() ? '✗ Key doesn’t match the server. Check for typos (1 vs l, 0 vs O).' : 'This server needs a room key.');
+        st.textContent = ok ? (f('s-key').value.trim() ? '✓ Key accepted' : '✓ No key needed on this server') : (f('s-key').value.trim() ? '✗ That key doesn’t match. Check for typos (1 vs l, 0 vs O) and extra spaces.' : 'Type the room key to continue.');
         f('s-go').disabled = !ok;
+        f('s-go-help').textContent = ok ? 'The portal opens and connects by itself as soon as the other campus is on. Bookmark the next page to skip this setup next time.' : 'Enter the room key (step 2) to start.';
       } catch { st.textContent = ''; }
     }, 300);
   };
   f('s-key').addEventListener('input', checkKey);
   checkKey();
+  drawFrames();
   build();
-  f('s-go').onclick = () => { stream?.getTracks().forEach((t) => t.stop()); location.href = build(); };
+  f('s-go').onclick = () => {
+    stream?.getTracks().forEach((t) => t.stop());
+    const url = build();
+    location.href = url;
+  };
   f('s-copy').onclick = async () => { await navigator.clipboard.writeText(build()); f('s-copy').textContent = 'Copied'; setTimeout(() => (f('s-copy').textContent = 'Copy link'), 1500); };
 }
 
@@ -290,6 +412,14 @@ async function portal() {
   if (Q.get('self') === '0') document.body.classList.add('no-self');
   if (Q.get('fit') === 'contain') document.body.classList.add('fit-contain');
   if (Q.get('stats') === '1') document.body.classList.add('show-stats');
+  if (Q.get('clocks') === '0') document.body.classList.add('no-clocks');
+
+  // ---------- Clocks (both campuses) ----------
+  const drawClocks = () => {
+    const p = clockParts(), diffDay = p[0][2] !== p[1][2];
+    $('clocks').innerHTML = p.map(([n, t, d]) => `<span class="c"><span class="n">${n}</span><span class="t">${t}</span>${diffDay ? `<span class="d">${d}</span>` : ''}</span>`).join('');
+  };
+  drawClocks(); setInterval(drawClocks, 10000);
 
   // ---------- Orientation ----------
   view.orient = ['landscape', 'portrait'].includes(Q.get('orient')) ? Q.get('orient') : '';
@@ -348,6 +478,7 @@ async function portal() {
   const clientId = crypto.randomUUID();
   const remoteVideo = $('remote'), localVideo = $('local');
   let localStream = null, pc = null, ws = null, polite = false, peerLabel = '';
+  let onRemoteState = null, onLinkChange = null; // set up by the controls section below
   let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
   let gen = 0; // peer-connection generation; bumps on full rebuild
 
@@ -625,6 +756,7 @@ async function portal() {
         setDot('ok', peerLabel || 'Connected');
         sendView(true);
         tuneSenders();
+        onLinkChange?.();
       } else if (s === 'disconnected') {
         setDot('bad', 'Connection unstable…');
         discTimer = setTimeout(() => { if (pc?.connectionState === 'disconnected') pc.restartIce(); }, 2500);
@@ -657,9 +789,11 @@ async function portal() {
     if (pc) { pc.onnegotiationneeded = pc.onicecandidate = pc.ontrack = pc.onconnectionstatechange = null; pc.close(); }
     pc = null;
     if (!keepUi) remoteVideo.srcObject = null;
+    onLinkChange?.();
   }
 
   async function onSignal(data) {
+    if (data.state) return onRemoteState?.(data.state);
     if (data.view) { remoteAspect = Number(data.view.aspect) || null; return adaptCapture(); }
     if (data.reset) { if (data.gen > gen) { gen = data.gen; rebuild(); } return; }
     if (data.gen !== gen || !pc) return; // stale message from an older connection
@@ -766,7 +900,24 @@ async function portal() {
     $('b-mic').classList.toggle('off', !micOn); $('b-mic').textContent = micOn ? 'Mic' : 'Mic off';
     $('b-cam').classList.toggle('off', !camOn); $('b-cam').textContent = camOn ? 'Camera' : 'Camera off';
     localVideo.style.opacity = camOn ? 1 : 0.25;
+    sendState(); renderNotices();
   }
+  // Mute notices: our own mic/camera state, and the other campus's (sent over the signaling channel).
+  let remoteState = null;
+  function renderNotices() {
+    const live = pc && pc.connectionState === 'connected';
+    const who = peerLabel || 'The other campus';
+    const rMicOff = live && remoteState && remoteState.mic === false, rCamOff = live && remoteState && remoteState.cam === false;
+    $('n-remote-mic-text').textContent = `${who} is muted`;
+    $('n-remote-mic').classList.toggle('on', !!rMicOff);
+    $('cam-off-text').textContent = `${who} turned their camera off`;
+    $('cam-off').classList.toggle('on', !!rCamOff);
+    $('n-my-mic').classList.toggle('on', !micOn);
+    $('n-my-cam').classList.toggle('on', !camOn);
+  }
+  function sendState() { signal({ state: { mic: micOn, cam: camOn } }); }
+  onRemoteState = (st) => { remoteState = st; renderNotices(); };
+  onLinkChange = () => { if (!(pc && pc.connectionState === 'connected')) remoteState = null; else sendState(); renderNotices(); };
   const toggleMic = () => { micOn = !micOn; applyMuteState(); };
   const toggleCam = () => { camOn = !camOn; applyMuteState(); };
   const toggleStats = () => document.body.classList.toggle('show-stats');
@@ -801,6 +952,7 @@ async function portal() {
     const th = $('p-theme'); th.innerHTML = '';
     [{ id: '', name: 'Full screen (no border)' }, ...themes].forEach((t) => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; th.appendChild(o); });
     th.value = cfg.theme;
+    $('p-clocks').checked = !document.body.classList.contains('no-clocks');
     $('p-orient').value = view.orient; $('p-rotate').value = String(view.rotate);
     $('p-res').value = cfg.res; $('p-fps').value = String(cfg.fps); $('p-bitrate').value = cfg.kbpsAuto ? '0' : String(cfg.kbps);
     if (![...$('p-bitrate').options].some((o) => o.value === $('p-bitrate').value)) { const o = document.createElement('option'); o.value = String(cfg.kbps); o.textContent = `${(cfg.kbps / 1000).toFixed(1)} Mbps`; $('p-bitrate').appendChild(o); $('p-bitrate').value = o.value; }
@@ -808,6 +960,7 @@ async function portal() {
   }
   const guard = (fn) => async (e) => { const el = e.target; el.disabled = true; try { await fn(el.value); } catch (err) { toast(`Couldn’t switch: ${err.name || err.message}`); fillDevices(); } finally { el.disabled = false; } };
   $('p-theme').onchange = (e) => setTheme(e.target.value);
+  $('p-clocks').onchange = (e) => { document.body.classList.toggle('no-clocks', !e.target.checked); setParam('clocks', e.target.checked ? null : '0'); };
   $('p-orient').onchange = (e) => setView(e.target.value, view.rotate);
   $('p-rotate').onchange = (e) => setView(view.orient, Number(e.target.value));
   $('p-cam').onchange = guard(switchCamera);

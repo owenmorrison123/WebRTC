@@ -38,6 +38,19 @@
            transform:scaleX(-1); box-shadow:0 4px 24px rgba(0,0,0,.6); border:2px solid rgba(255,255,255,.15); background:#111; transition:opacity .3s; }
   body.no-self #local { display:none; }
   #label { position:absolute; left:20px; top:16px; display:flex; align-items:center; gap:10px; padding:6px 12px; border-radius:999px; background:var(--panel); font-weight:600; letter-spacing:.02em; }
+  #clocks { position:absolute; right:20px; top:16px; display:flex; gap:4px; padding:6px 8px; border-radius:999px; background:var(--panel); font-size:14px; z-index:3; white-space:nowrap; }
+  #clocks .c { padding:0 8px; } #clocks .c + .c { border-left:1px solid rgba(255,255,255,.18); }
+  #clocks .n { color:var(--muted); margin-right:6px; } #clocks .t { font-weight:600; font-variant-numeric:tabular-nums; } #clocks .d { color:var(--muted); margin-left:5px; font-size:12px; }
+  body.no-clocks #clocks { display:none; }
+  body.show-stats #stats { top:64px; } body.no-clocks.show-stats #stats { top:16px; }
+  #notices { position:absolute; left:50%; top:16px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:8px; z-index:3; pointer-events:none; }
+  #notices .pill { display:none; align-items:center; gap:8px; padding:8px 14px; border-radius:999px; background:rgba(185,28,28,.92); color:#fff; font-weight:600; font-size:15px; box-shadow:0 4px 18px rgba(0,0,0,.35); white-space:nowrap; }
+  #notices .pill.mine { background:rgba(10,14,20,.85); border:1px solid rgba(239,68,68,.7); }
+  #notices .pill.on { display:flex; }
+  #notices svg { width:18px; height:18px; flex:none; }
+  #cam-off { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(5,7,10,.82); pointer-events:none; border-radius:inherit; }
+  #cam-off.on { display:flex; }
+  #cam-off span { padding:10px 18px; border-radius:12px; background:var(--panel); font-size:clamp(16px, 2cqw, 26px); font-weight:500; text-align:center; }
   #dot { width:10px; height:10px; border-radius:50%; background:var(--warn); box-shadow:0 0 10px currentColor; }
   #dot.ok { background:var(--ok); } #dot.bad { background:var(--bad); }
   #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; background:var(--t-wait, radial-gradient(ellipse at center,#0b1520 0%,#05070a 70%)); text-align:center; padding:24px; transition:opacity .6s; }
@@ -61,6 +74,7 @@
   body.show-settings #settings { display:block; }
   #settings h3 { margin:0 0 8px; font-size:16px; }
   #settings label { display:block; margin-top:10px; font-size:12px; color:var(--muted); }
+  #settings label.chk { display:flex; align-items:center; gap:8px; color:var(--fg); font-size:14px; }
   #settings select { display:block; width:100%; margin-top:4px; padding:8px 10px; border-radius:8px; border:1px solid #263241; background:#070b10; color:var(--fg); font:14px system-ui,sans-serif; }
   #settings .prow { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   #settings #p-actual { margin:12px 0 0; font-size:12px; color:var(--muted); min-height:16px; }
@@ -92,29 +106,64 @@
   #overlay.themed p { color:var(--wait-muted, rgba(255,255,255,.75)); }
 
   /* ---------- setup ---------- */
-  #setup { display:none; height:100%; overflow:auto; padding:32px 16px; }
-  #setup .card { max-width:640px; margin:0 auto; background:#0d131b; border:1px solid #1d2733; border-radius:16px; padding:28px; }
-  #setup h1 { margin:0 0 4px; font-weight:600; }
-  #setup .sub { color:var(--muted); margin:0 0 22px; }
+  #setup { display:none; height:100%; overflow:auto; padding:28px 16px 48px; background:radial-gradient(ellipse at 20% 0%, rgba(77,39,132,.35), transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(133,4,78,.30), transparent 55%), var(--bg); }
+  #setup .card { max-width:680px; margin:0 auto; background:#0d131b; border:1px solid #1d2733; border-radius:18px; padding:28px; }
+  #setup .s-head { display:flex; align-items:center; gap:18px; }
+  #setup .s-logos { display:flex; gap:10px; flex:none; }
+  #setup .s-logos img { height:54px; width:auto; }
+  #setup h1 { margin:0 0 4px; font-weight:650; font-size:26px; }
+  #setup .sub { color:var(--muted); margin:0; }
+  #setup .s-clock { margin:16px 0 4px; color:var(--muted); font-size:13px; display:flex; gap:16px; flex-wrap:wrap; }
+  #setup .s-clock b { color:var(--fg); font-weight:600; }
+  #setup .step { margin-top:22px; padding-top:20px; border-top:1px solid #1d2733; }
+  #setup h2 { display:flex; align-items:center; gap:10px; margin:0 0 12px; font-size:18px; font-weight:600; }
+  #setup .num { display:inline-grid; place-items:center; width:28px; height:28px; border-radius:50%; background:var(--accent); color:#04121c; font-size:14px; font-weight:700; flex:none; }
+  #setup .help { margin:0 0 10px; color:var(--muted); font-size:14px; }
+  #setup .help.center { text-align:center; margin-top:10px; }
   #setup label { display:block; margin:14px 0 6px; font-size:13px; color:var(--muted); }
-  #setup input, #setup select { width:100%; padding:10px 12px; border-radius:10px; border:1px solid #263241; background:#070b10; color:var(--fg); font:inherit; }
+  #setup input, #setup select { width:100%; padding:11px 12px; border-radius:10px; border:1px solid #263241; background:#070b10; color:var(--fg); font:inherit; }
+  #setup input:focus, #setup select:focus { outline:2px solid var(--accent); outline-offset:1px; }
   #setup .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  #setup .campus { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  #setup .campus button { display:flex; flex-direction:column; align-items:center; gap:6px; padding:18px 12px; border-radius:14px; border:2px solid #263241; background:#070b10; color:var(--fg); font:inherit; cursor:pointer; text-align:center; }
+  #setup .campus button img { height:64px; width:auto; margin-bottom:4px; }
+  #setup .campus button span { font-weight:600; font-size:16px; }
+  #setup .campus button small { color:var(--muted); }
+  #setup .campus button:hover { border-color:#3b4b5e; }
+  #setup .campus button.on { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, #070b10); }
+  #setup video { width:100%; aspect-ratio:16/9; background:#000; border-radius:12px; transform:scaleX(-1); object-fit:cover; display:block; }
+  #setup .meter-row { display:flex; align-items:center; gap:12px; margin-top:12px; }
+  #setup .meter-label { font-size:13px; color:var(--muted); flex:none; }
+  #setup .meter { flex:1; height:10px; border-radius:6px; background:#1d2733; overflow:hidden; }
+  #setup #s-meter { height:100%; width:0; background:var(--ok); border-radius:6px; transition:width .08s linear; }
+  #setup #s-meter-help { margin-top:6px; }
+  #setup .s-frames h4 { margin:12px 0 6px; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
+  #setup .s-frames .fgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:8px; }
+  #setup .s-frames button, #setup .seg button { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; border:1px solid #263241; background:#070b10; color:var(--fg); font:14px/1.25 system-ui,sans-serif; text-align:left; cursor:pointer; }
+  #setup .s-frames button.on, #setup .seg button.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+  #setup .s-frames .sw { flex:none; width:34px; height:22px; border-radius:5px; box-sizing:border-box; }
+  #setup .seg { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  #setup .seg .ico { flex:none; border:2px solid currentColor; border-radius:3px; opacity:.8; }
+  #setup .seg .ico.land { width:28px; height:17px; } #setup .seg .ico.port { width:15px; height:24px; margin:0 6px; }
   #setup .checks { display:flex; flex-wrap:wrap; gap:16px; margin-top:16px; }
   #setup .checks label { display:flex; align-items:center; gap:6px; margin:0; color:var(--fg); }
   #setup .checks input { width:auto; }
-  #setup video { width:100%; aspect-ratio:16/9; background:#000; border-radius:10px; margin-top:18px; transform:scaleX(-1); object-fit:cover; }
-  #setup .url { margin-top:18px; padding:12px; border-radius:10px; background:#070b10; border:1px dashed #263241; word-break:break-all; font:13px ui-monospace,Menlo,Consolas,monospace; }
-  #setup .btns { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  #setup .url { padding:12px; border-radius:10px; background:#070b10; border:1px dashed #263241; word-break:break-all; font:13px ui-monospace,Menlo,Consolas,monospace; }
+  #setup .btns { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
   #setup button { padding:11px 18px; border-radius:10px; border:0; font:inherit; font-weight:600; cursor:pointer; background:#1d2733; color:var(--fg); }
+  #setup #s-test { width:100%; }
   #setup button.primary { background:var(--accent); color:#04121c; }
+  #setup button.big { display:block; width:100%; margin-top:26px; padding:16px; font-size:18px; border-radius:12px; }
   #setup button:disabled { opacity:.4; cursor:not-allowed; }
+  #setup .adv { margin-top:22px; border-top:1px solid #1d2733; padding-top:14px; }
+  #setup .adv summary { cursor:pointer; color:var(--muted); font-weight:600; }
   #setup .hint { margin:10px 0 0; color:var(--muted); font-size:13px; }
   .keystat { min-height:18px; margin-top:6px; font-size:13px; }
   .keystat.ok { color:var(--ok); } .keystat.bad { color:var(--bad); }
   #ov-key { display:none; gap:8px; flex-wrap:wrap; justify-content:center; }
   #ov-key input { padding:12px 14px; border-radius:10px; border:1px solid #263241; background:#070b10; color:var(--fg); font:16px ui-monospace,Menlo,Consolas,monospace; width:min(80cqw,320px); }
   #ov-key button { padding:12px 18px; border-radius:10px; border:0; background:var(--accent); color:#04121c; font:inherit; font-weight:600; cursor:pointer; }
-  @media (max-width:560px) { #setup .row { grid-template-columns:1fr; } #local { width:34vw; right:12px; bottom:12px; } }
+  @media (max-width:560px) { #setup .row, #setup .seg { grid-template-columns:1fr; } #setup .s-logos img { height:40px; } #setup .card { padding:20px; } #local { width:34vw; right:12px; bottom:12px; } }
 </style>
 </head>
 <body>
@@ -122,63 +171,105 @@
 <!-- Setup screen: shown when no ?room= is in the URL -->
 <section id="setup">
   <div class="card">
-    <h1>Campus Portal setup</h1>
-    <p class="sub">Configure each site once, then bookmark the generated link on that site's kiosk machine. Both sites must use the same room name and key.</p>
-    <div class="row">
-      <div><label for="s-room">Room name (shared by both sites)</label><input id="s-room" value="portal"></div>
-      <div><label for="s-key">Room key</label><input id="s-key" placeholder="paste the key here" autocomplete="off" spellcheck="false"><div id="s-key-status" class="keystat"></div></div>
+    <div class="s-head">
+      <div class="s-logos"><img src="/themes/_assets/ue-logo.png" alt="University of Evansville"><img src="/themes/_assets/harlaxton-crest.png" alt="Harlaxton College"></div>
+      <div>
+        <h1>Campus Portal</h1>
+        <p class="sub">A live video window between Evansville and Harlaxton. Set this screen up once, then press <b>Start portal</b>.</p>
+      </div>
     </div>
-    <div class="row">
-      <div><label for="s-label">This site's name (shown to the other side)</label><input id="s-label" placeholder="e.g. Boston Campus"></div>
-      <div><label for="s-res">Video quality</label>
-        <select id="s-res"><option value="720">720p (recommended)</option><option value="1080">1080p (sharpest)</option><option value="540">540p (weak links)</option></select></div>
+    <div class="s-clock" id="s-clock"></div>
+
+    <div class="step">
+      <h2><span class="num">1</span>Where is this screen?</h2>
+      <div class="campus">
+        <button type="button" data-campus="ue"><img src="/themes/_assets/ue-logo.png" alt=""><span>University of Evansville</span><small>Evansville, Indiana</small></button>
+        <button type="button" data-campus="hx"><img src="/themes/_assets/harlaxton-crest.png" alt=""><span>Harlaxton College</span><small>Grantham, England</small></button>
+      </div>
+      <label for="s-label">Name shown to the other campus</label>
+      <input id="s-label" placeholder="e.g. Ridgway Center lobby">
     </div>
-    <div class="row">
-      <div><label for="s-cam">Camera</label><select id="s-cam"><option value="">Default</option></select></div>
-      <div><label for="s-mic">Microphone</label><select id="s-mic"><option value="">Default</option></select></div>
+
+    <div class="step">
+      <h2><span class="num">2</span>Enter the room key</h2>
+      <p class="help">Both campuses use the same key. Ask whoever set up the portal if you don’t have it.</p>
+      <input id="s-key" placeholder="Room key" autocomplete="off" spellcheck="false">
+      <div id="s-key-status" class="keystat"></div>
     </div>
-    <div class="row">
-      <div><label for="s-fps">Frame rate</label>
-        <select id="s-fps"><option value="30">30 fps (recommended)</option><option value="60">60 fps (smoothest; camera must support it)</option><option value="24">24 fps</option><option value="15">15 fps (weak links)</option></select></div>
-      <div><label for="s-bitrate">Max bitrate</label>
-        <select id="s-bitrate"><option value="">Auto (by quality)</option><option value="1500">1.5 Mbps</option><option value="3000">3 Mbps</option><option value="5000">5 Mbps</option><option value="8000">8 Mbps</option><option value="12000">12 Mbps</option></select></div>
+
+    <div class="step">
+      <h2><span class="num">3</span>Check your camera and microphone</h2>
+      <video id="s-preview" autoplay muted playsinline></video>
+      <div class="meter-row"><span class="meter-label">Mic level</span><div class="meter"><div id="s-meter"></div></div></div>
+      <p class="help" id="s-meter-help">Say something. The bar should move when you talk.</p>
+      <div class="row">
+        <div><label for="s-cam">Camera</label><select id="s-cam"><option value="">Default</option></select></div>
+        <div><label for="s-mic">Microphone</label><select id="s-mic"><option value="">Default</option></select></div>
+      </div>
+      <div class="row">
+        <div><label for="s-spk">Speaker</label><select id="s-spk"><option value="">Default</option></select></div>
+        <div><label>&nbsp;</label><button type="button" id="s-test">▶ Play a test sound</button></div>
+      </div>
     </div>
-    <div class="row">
-      <div><label for="s-spk">Speaker</label><select id="s-spk"><option value="">Default</option></select></div>
-      <div><label for="s-theme">Theme</label><select id="s-theme"><option value="">Full screen (no border)</option></select></div>
+
+    <div class="step">
+      <h2><span class="num">4</span>Choose how it looks</h2>
+      <p class="help">You can change the frame any time later with the <b>Frame</b> button, even during a call.</p>
+      <div id="s-frames" class="s-frames"></div>
+      <label>Screen</label>
+      <div class="seg" id="s-orient-seg">
+        <button type="button" data-orient="landscape"><span class="ico land"></span>Normal (wide)</button>
+        <button type="button" data-orient="portrait"><span class="ico port"></span>TV on its side (tall)</button>
+      </div>
+      <select id="s-theme" hidden><option value="">Full screen (no border)</option></select>
+      <select id="s-orient" hidden><option value="">Auto (match the screen)</option><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select>
     </div>
-    <div class="row">
-      <div><label for="s-codec">Video codec</label>
-        <select id="s-codec"><option value="">Auto</option><option>VP8</option><option>H264</option><option>VP9</option><option>AV1</option></select></div>
-    </div>
-    <div class="row">
-      <div><label for="s-orient">Orientation</label>
-        <select id="s-orient"><option value="">Auto (match the screen)</option><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></div>
-      <div><label for="s-rotate">Rotate picture</label>
-        <select id="s-rotate"><option value="0">No rotation</option><option value="90">90° clockwise</option><option value="270">90° counter-clockwise</option></select></div>
-    </div>
-    <p class="hint">Turning a TV on its side? If the computer can set its display to portrait, do that and leave rotation off. If it can't, choose Portrait and the rotation that makes the picture upright. You can also press <b>R</b> in the portal to try each one. On a normal landscape screen, Portrait shows a centered preview of how the portal will look.</p>
-    <div class="checks">
-      <label><input type="checkbox" id="s-self" checked> Show self-view</label>
-      <label><input type="checkbox" id="s-contain"> Letterbox (don't crop)</label>
-      <label><input type="checkbox" id="s-stats"> Show stats on start</label>
-    </div>
-    <video id="s-preview" autoplay muted playsinline></video>
-    <div class="url" id="s-url"></div>
-    <div class="btns">
-      <button class="primary" id="s-go">Open portal</button>
-      <button id="s-copy">Copy link</button>
-    </div>
+
+    <button class="primary big" id="s-go">Start portal</button>
+    <p class="help center" id="s-go-help">The portal opens full screen and connects by itself as soon as the other campus is on. Bookmark the next page to skip this setup next time.</p>
+
+    <details class="adv">
+      <summary>Advanced settings</summary>
+      <div class="row">
+        <div><label for="s-room">Room name (must match the other campus)</label><input id="s-room" value="portal"></div>
+        <div><label for="s-res">Video quality</label>
+          <select id="s-res"><option value="720">720p (recommended)</option><option value="1080">1080p (sharpest)</option><option value="540">540p (weak links)</option></select></div>
+      </div>
+      <div class="row">
+        <div><label for="s-fps">Frame rate</label>
+          <select id="s-fps"><option value="30">30 fps (recommended)</option><option value="60">60 fps (smoothest; camera must support it)</option><option value="24">24 fps</option><option value="15">15 fps (weak links)</option></select></div>
+        <div><label for="s-bitrate">Max bitrate</label>
+          <select id="s-bitrate"><option value="">Auto (by quality)</option><option value="1500">1.5 Mbps</option><option value="3000">3 Mbps</option><option value="5000">5 Mbps</option><option value="8000">8 Mbps</option><option value="12000">12 Mbps</option></select></div>
+      </div>
+      <div class="row">
+        <div><label for="s-codec">Video codec</label>
+          <select id="s-codec"><option value="">Auto</option><option>VP8</option><option>H264</option><option>VP9</option><option>AV1</option></select></div>
+        <div><label for="s-rotate">Rotate picture</label>
+          <select id="s-rotate"><option value="0">No rotation</option><option value="90">90° clockwise</option><option value="270">90° counter-clockwise</option></select></div>
+      </div>
+      <p class="hint">Turning a TV on its side? If the computer can set its display to portrait, do that and leave rotation off. If it can’t, choose “TV on its side” and the rotation that makes the picture upright (or press <b>R</b> in the portal to try each one).</p>
+      <div class="checks">
+        <label><input type="checkbox" id="s-self" checked> Show my own video in the corner</label>
+        <label><input type="checkbox" id="s-clocks" checked> Show both clocks</label>
+        <label><input type="checkbox" id="s-contain"> Letterbox (don’t crop)</label>
+        <label><input type="checkbox" id="s-stats"> Show stats on start</label>
+      </div>
+      <label>Portal link for this screen</label>
+      <div class="url" id="s-url"></div>
+      <div class="btns"><button id="s-copy">Copy link</button></div>
+    </details>
   </div>
 </section>
 
 <!-- Portal -->
 <section id="portal">
-  <div id="frame"><div id="stage"><video id="remote" autoplay playsinline></video><div id="wait-bg"></div><div id="shade"></div></div></div>
+  <div id="frame"><div id="stage"><video id="remote" autoplay playsinline></video><div id="wait-bg"></div><div id="cam-off"><span id="cam-off-text"></span></div><div id="shade"></div></div></div>
   <img id="art" alt="">
   <div id="logo"></div>
   <video id="local" autoplay muted playsinline></video>
   <div id="label"><span id="dot"></span><span id="label-text">Connecting…</span></div>
+  <div id="clocks"></div>
+  <div id="notices"><div class="pill" id="n-remote-mic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z" fill="currentColor"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4l16 16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span id="n-remote-mic-text"></span></div><div class="pill mine" id="n-my-mic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z" fill="currentColor"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4l16 16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>Your mic is off</span></div><div class="pill mine" id="n-my-cam"><span>Your camera is off</span></div></div>
   <pre id="stats"></pre>
   <div id="overlay"><div class="ov-mark"><div class="ring"></div><img id="ov-logo" alt=""></div><img id="ov-word" alt=""><h1 id="ov-title">Starting portal…</h1><p id="ov-sub"></p><form id="ov-key"><input id="ov-key-input" placeholder="Room key" autocomplete="off" spellcheck="false"><button>Try again</button></form></div>
   <div id="tap">Click anywhere to start audio</div>
@@ -191,6 +282,7 @@
   <div id="settings">
     <h3>Settings</h3>
     <label>Theme<select id="p-theme"></select></label>
+    <label class="chk"><input type="checkbox" id="p-clocks"> Show both clocks</label>
     <div class="prow">
       <label>Orientation<select id="p-orient"><option value="">Auto</option><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></label>
       <label>Rotate<select id="p-rotate"><option value="0">None</option><option value="90">90° clockwise</option><option value="270">90° counter-clockwise</option></select></label>

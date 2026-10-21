@@ -32,9 +32,19 @@ Open `http://localhost:8080` in two browser tabs to try it. Browsers only allow 
 
 ## 2. Set up each site
 
-1. Open the site with no parameters. You'll see the **setup page**.
-2. Fill in the same **room name** and **key** at both sites, give each site a name (for example "Boston Campus" or "Oxford Campus"), and pick the camera, mic and speaker.
-3. Click **Open portal** and bookmark that URL on the kiosk machine. You can also set it as the browser's start page.
+Open the site with no parameters to get the **setup page**. It walks through four steps:
+
+1. **Where is this screen?** Tap **University of Evansville** or **Harlaxton College**. This fills in the name the other campus sees and picks a matching frame.
+2. **Room key.** It's checked as you type, so typos show up right away.
+3. **Camera and microphone.** A live preview, a mic level bar that moves when you talk, and a **Play a test sound** button for the speaker.
+4. **How it looks.** One-tap frames, and **Normal (wide)** or **TV on its side (tall)**.
+
+Then press **Start portal** and bookmark the page that opens (or set it as the browser's start page). The setup page remembers the last choices made on that computer. Room name, quality, codec and rotation are under **Advanced settings**.
+
+### In the portal
+
+- **Clocks:** both campus times are shown at the top right (Evansville and Harlaxton). Turn them off in **Settings** or with `clocks=0`.
+- **Mute notices:** when the other campus mutes, a red "Harlaxton College is muted" notice appears at the top, and "turned their camera off" shows over their picture. Your own screen shows "Your mic is off" or "Your camera is off" while you're muted, even when the toolbar is hidden.
 
 ### Kiosk machine (recommended)
 
@@ -112,6 +122,7 @@ Each site's settings control the video it **sends**. To make the England feed sh
 | `orient` | auto | `landscape` or `portrait` |
 | `rotate` | `0` | `90` or `270`: rotate the whole portal for a TV on its side |
 | `cam` / `mic` / `spk` | default | Device IDs (the setup page fills these) |
+| `clocks=0` | — | Hide the two campus clocks |
 | `self=0` | — | Start with self-view hidden (toggle any time with **H** or the toolbar) |
 | `fit=contain` | — | Letterbox instead of crop-to-fill |
 | `stats=1` | — | Show stats on start |
