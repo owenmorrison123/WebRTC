@@ -46,6 +46,7 @@ Then press **Start portal** and bookmark the page that opens (or set it as the b
 - **Clocks:** both campus times are shown at the top right (Evansville and Harlaxton). Turn them off in **Settings** or with `clocks=0`.
 - **Sleep mode:** by default the portal sleeps from **7:00 PM to 5:00 AM Evansville time** (1:00 AM to 11:00 AM at Harlaxton). Both screens use the same Evansville-time schedule, so they sleep and wake together automatically, with no one touching anything, and daylight-saving changes are handled. While asleep, the camera and mic send nothing, the other side's sound is muted, and the screen shows a dim clock with the wake-up time. The call stays connected, so waking is instant. To wake it early, move the mouse or tap the screen and press **Wake it up for 30 minutes**; the other campus wakes up too. Change or turn off the schedule in **Settings** (or **Advanced settings** on the setup page), or with `sleep=21:00-06:00` / `sleep=off`.
 - **Captions:** press **Captions** on the toolbar (or **C**) to see what the other campus says as text, near the bottom of the screen. Press it again to turn them off. Each screen chooses for itself, and it can be switched any time during a call. It works by the other kiosk turning its own speech into text, so captions need **Chrome or Edge on the other kiosk** and an internet connection there. While someone is reading your captions, your screen shows a small "Captions on" notice. Captions pause while your mic is muted or the portal is asleep. The speech is processed by the browser's speech service (Google for Chrome, Microsoft for Edge), so check that this is OK with your university before leaving it on. Add `cc=1` to the link to start with captions on.
+  - **Accents:** captions are made at the screen where people are talking, using one accent model. Set **Caption accent** in **Settings** (or **Advanced settings** on the setup page) to how most people speak *at that screen*, for example English – United Kingdom at Harlaxton for British staff and visitors. Local names like Harlaxton, Evansville and Grantham are corrected automatically. A good microphone close to where people stand helps accuracy more than anything else.
 - **Mute notices:** when the other campus mutes, a red "Harlaxton College is muted" notice appears at the top, and "turned their camera off" shows over their picture. Your own screen shows "Your mic is off" or "Your camera is off" while you're muted, even when the toolbar is hidden.
 
 ### Kiosk machine (recommended)
@@ -127,6 +128,7 @@ Each site's settings control the video it **sends**. To make the England feed sh
 | `cam` / `mic` / `spk` | default | Device IDs (the setup page fills these) |
 | `clocks=0` | — | Hide the two campus clocks |
 | `cc=1` | — | Start with captions on |
+| `cclang` | this computer's language | Caption accent for people speaking at this screen, e.g. `en-GB`, `en-US`, `en-IE` |
 | `sleep` | `19:00-05:00` | Overnight sleep window in Evansville time (`HH:MM-HH:MM`), or `off` |
 | `self=0` | — | Start with self-view hidden (toggle any time with **H** or the toolbar) |
 | `fit=contain` | — | Letterbox instead of crop-to-fill |

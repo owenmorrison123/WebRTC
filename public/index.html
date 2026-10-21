@@ -284,6 +284,9 @@
         <div><label for="s-sleep-to">Wake at (Evansville time)</label><input type="time" id="s-sleep-to" value="05:00"></div>
       </div>
       <p class="hint">Both screens follow the same Evansville-time schedule, so they sleep and wake together. 7:00 PM – 5:00 AM in Evansville is 1:00 AM – 11:00 AM at Harlaxton.</p>
+      <label for="s-cclang">Caption accent (people speaking at this screen)</label>
+      <select id="s-cclang"><option value="">Auto (this computer’s language)</option><option value="en-US">English – United States</option><option value="en-GB">English – United Kingdom</option><option value="en-IE">English – Ireland</option><option value="en-CA">English – Canada</option><option value="en-AU">English – Australia</option><option value="en-NZ">English – New Zealand</option><option value="en-IN">English – India</option><option value="en-ZA">English – South Africa</option><option value="es-US">Spanish – United States</option><option value="es-ES">Spanish – Spain</option></select>
+      <p class="hint">Captions are made at the screen where people are talking, so pick the accent most people have <i>here</i>. For example, English – United Kingdom at Harlaxton if it's mostly British staff and visitors, or English – United States if it's mostly American students.</p>
       <label>Portal link for this screen</label>
       <div class="url" id="s-url"></div>
       <div class="btns"><button id="s-copy">Copy link</button></div>
@@ -315,6 +318,7 @@
     <h3>Settings</h3>
     <label>Theme<select id="p-theme"></select></label>
     <label class="chk"><input type="checkbox" id="p-clocks"> Show both clocks</label>
+    <label>Caption accent (people speaking at this screen)<select id="p-cclang"><option value="">Auto (this computer’s language)</option><option value="en-US">English – United States</option><option value="en-GB">English – United Kingdom</option><option value="en-IE">English – Ireland</option><option value="en-CA">English – Canada</option><option value="en-AU">English – Australia</option><option value="en-NZ">English – New Zealand</option><option value="en-IN">English – India</option><option value="en-ZA">English – South Africa</option><option value="es-US">Spanish – United States</option><option value="es-ES">Spanish – Spain</option></select></label>
     <label class="chk"><input type="checkbox" id="p-sleep"> Sleep overnight (Evansville time)</label>
     <div class="prow">
       <label>Sleep at<input type="time" id="p-sleep-from"></label>

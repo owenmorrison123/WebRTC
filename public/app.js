@@ -332,6 +332,7 @@ async function setup() {
     if (f('s-rotate').value !== '0') p.set('rotate', f('s-rotate').value);
     if (!f('s-self').checked) p.set('self', '0');
     if (!f('s-clocks').checked) p.set('clocks', '0');
+    if (f('s-cclang').value) p.set('cclang', f('s-cclang').value);
     const sl = `${f('s-sleep-from').value || '19:00'}-${f('s-sleep-to').value || '05:00'}`;
     if (!f('s-sleep').checked) p.set('sleep', 'off'); else if (sl !== '19:00-05:00') p.set('sleep', sl);
     if (f('s-contain').checked) p.set('fit', 'contain');
@@ -342,11 +343,12 @@ async function setup() {
       bitrate: f('s-bitrate').value, codec: f('s-codec').value, rotate: f('s-rotate').value, theme: f('s-theme').value, orient: f('s-orient').value,
       cam: f('s-cam').value, mic: f('s-mic').value, spk: f('s-spk').value,
       sleep: f('s-sleep').checked, sleepFrom: f('s-sleep-from').value, sleepTo: f('s-sleep-to').value,
+      cclang: f('s-cclang').value,
       self: f('s-self').checked, clocks: f('s-clocks').checked, contain: f('s-contain').checked, stats: f('s-stats').checked });
     return url;
   };
   // Restore the last setup used on this computer (or a ?key= in the setup link).
-  for (const [id, k] of [['s-room', 'room'], ['s-key', 'key'], ['s-label', 'label'], ['s-res', 'res'], ['s-fps', 'fps'], ['s-bitrate', 'bitrate'], ['s-codec', 'codec'], ['s-rotate', 'rotate'], ['s-theme', 'theme'], ['s-orient', 'orient'], ['s-sleep-from', 'sleepFrom'], ['s-sleep-to', 'sleepTo']]) {
+  for (const [id, k] of [['s-room', 'room'], ['s-key', 'key'], ['s-label', 'label'], ['s-res', 'res'], ['s-fps', 'fps'], ['s-bitrate', 'bitrate'], ['s-codec', 'codec'], ['s-rotate', 'rotate'], ['s-theme', 'theme'], ['s-orient', 'orient'], ['s-sleep-from', 'sleepFrom'], ['s-sleep-to', 'sleepTo'], ['s-cclang', 'cclang']]) {
     if (saved[k] == null) continue;
     if (f(id).tagName !== 'SELECT' || [...f(id).options].some((o) => o.value === String(saved[k]))) f(id).value = saved[k];
   }
@@ -898,7 +900,7 @@ async function portal() {
   // ---------- Controls ----------
   let micOn = true, camOn = true, sleeping = false;
   // Captions: cc.iWant = we want to see the other side's speech as text; cc.peerWants = they want ours.
-  const cc = { rec: null, peerWants: false, iWant: Q.get('cc') === '1', fatal: false, backoff: 1000, lastInterim: 0 };
+  const cc = { rec: null, peerWants: false, iWant: Q.get('cc') === '1', fatal: false, backoff: 1000, lastInterim: 0, lang: Q.get('cclang') || '' };
   function applyMuteState() {
     localStream.getAudioTracks().forEach((t) => (t.enabled = micOn && !sleeping));
     localStream.getVideoTracks().forEach((t) => (t.enabled = camOn && !sleeping));
@@ -935,6 +937,14 @@ async function portal() {
   // captions on, that tells the other kiosk to start transcribing, and its words appear here.
   // Uses Chrome/Edge's built-in speech service (audio goes to Google/Microsoft while captions are on).
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  // Local names speech recognition often gets wrong, and the usual ways it mishears them.
+  const CC_WORDS = ['Harlaxton', 'Evansville', 'Grantham', 'Lincolnshire', 'Purple Aces', 'Ridgway', 'Ace Purple'];
+  const CC_FIXES = [
+    [/\b(?:hard|har|hal|car)\s*la(?:x|ks|cks)\s*ton\b/gi, 'Harlaxton'], [/\bharlaxton\b/gi, 'Harlaxton'],
+    [/\bevans?\s*ville\b/gi, 'Evansville'], [/\bgrant\s*ham\b/gi, 'Grantham'], [/\blincoln\s*shire\b/gi, 'Lincolnshire'],
+    [/\bridge\s*way\b/gi, 'Ridgway'],
+  ];
+  const fixWords = (t) => CC_FIXES.reduce((s, [re, w]) => s.replace(re, w), t);
   function syncRec() {
     const want = cc.peerWants && micOn && !sleeping && healthy() && !cc.fatal;
     if (want && !cc.rec) startRec(); else if (!want && cc.rec) stopRec();
@@ -943,12 +953,16 @@ async function portal() {
   function startRec() {
     if (!SR) { signal({ ccErr: 'unsupported' }); cc.fatal = true; return; }
     const rec = new SR();
-    rec.continuous = true; rec.interimResults = true; rec.lang = navigator.language || 'en-US';
+    rec.continuous = true; rec.interimResults = true;
+    // The accent model matters most for accuracy: set it to how people speak at THIS screen.
+    rec.lang = cc.lang || navigator.language || 'en-US';
+    // Newer Chrome can be told which unusual words to expect.
+    try { if ('phrases' in rec && window.SpeechRecognitionPhrase) rec.phrases = CC_WORDS.map((w) => new SpeechRecognitionPhrase(w, 5)); } catch {}
     rec.onresult = (e) => {
       let fin = '', interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i]; if (r.isFinal) fin += r[0].transcript; else interim += r[0].transcript; }
-      if (fin.trim()) signal({ cc: { t: fin.trim(), f: 1 } });
-      else if (interim.trim() && Date.now() - cc.lastInterim > 250) { cc.lastInterim = Date.now(); signal({ cc: { t: interim.trim(), f: 0 } }); }
+      if (fin.trim()) signal({ cc: { t: fixWords(fin.trim()), f: 1 } });
+      else if (interim.trim() && Date.now() - cc.lastInterim > 250) { cc.lastInterim = Date.now(); signal({ cc: { t: fixWords(interim.trim()), f: 0 } }); }
       cc.backoff = 1000;
     };
     rec.onerror = (e) => {
@@ -1087,6 +1101,7 @@ async function portal() {
     [{ id: '', name: 'Full screen (no border)' }, ...themes].forEach((t) => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; th.appendChild(o); });
     th.value = cfg.theme;
     $('p-clocks').checked = !document.body.classList.contains('no-clocks');
+    $('p-cclang').value = cc.lang;
     $('p-sleep').checked = !!sleepCfg; $('p-sleep-from').value = fmtHM(sleepCfg?.from ?? 1140); $('p-sleep-to').value = fmtHM(sleepCfg?.to ?? 300);
     $('p-orient').value = view.orient; $('p-rotate').value = String(view.rotate);
     $('p-res').value = cfg.res; $('p-fps').value = String(cfg.fps); $('p-bitrate').value = cfg.kbpsAuto ? '0' : String(cfg.kbps);
@@ -1097,6 +1112,7 @@ async function portal() {
   $('p-theme').onchange = (e) => setTheme(e.target.value);
   const sleepChanged = () => setSleepCfg($('p-sleep').checked, $('p-sleep-from').value || '19:00', $('p-sleep-to').value || '05:00');
   $('p-sleep').onchange = sleepChanged; $('p-sleep-from').onchange = sleepChanged; $('p-sleep-to').onchange = sleepChanged;
+  $('p-cclang').onchange = (e) => { cc.lang = e.target.value; setParam('cclang', cc.lang || null); cc.fatal = false; stopRec(); syncRec(); toast(`Caption accent: ${e.target.selectedOptions[0].textContent}`); };
   $('p-clocks').onchange = (e) => { document.body.classList.toggle('no-clocks', !e.target.checked); setParam('clocks', e.target.checked ? null : '0'); };
   $('p-orient').onchange = (e) => setView(e.target.value, view.rotate);
   $('p-rotate').onchange = (e) => setView(view.orient, Number(e.target.value));
