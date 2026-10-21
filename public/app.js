@@ -479,7 +479,7 @@ async function portal() {
   const clientId = crypto.randomUUID();
   const remoteVideo = $('remote'), localVideo = $('local');
   let localStream = null, pc = null, ws = null, polite = false, peerLabel = '';
-  let onRemoteState = null, onLinkChange = null, onRemoteWake = null; // set up by the controls section below
+  let onRemoteState = null, onLinkChange = null, onRemoteWake = null, onCaptionSignal = null; // set up by the controls section below
   let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
   let gen = 0; // peer-connection generation; bumps on full rebuild
 
@@ -796,6 +796,7 @@ async function portal() {
   async function onSignal(data) {
     if (data.state) return onRemoteState?.(data.state);
     if (data.wake) return onRemoteWake?.(data.wake);
+    if (data.cc || data.ccWant !== undefined || data.ccErr) return onCaptionSignal?.(data);
     if (data.view) { remoteAspect = Number(data.view.aspect) || null; return adaptCapture(); }
     if (data.reset) { if (data.gen > gen) { gen = data.gen; rebuild(); } return; }
     if (data.gen !== gen || !pc) return; // stale message from an older connection
@@ -896,6 +897,8 @@ async function portal() {
 
   // ---------- Controls ----------
   let micOn = true, camOn = true, sleeping = false;
+  // Captions: cc.iWant = we want to see the other side's speech as text; cc.peerWants = they want ours.
+  const cc = { rec: null, peerWants: false, iWant: Q.get('cc') === '1', fatal: false, backoff: 1000, lastInterim: 0 };
   function applyMuteState() {
     localStream.getAudioTracks().forEach((t) => (t.enabled = micOn && !sleeping));
     localStream.getVideoTracks().forEach((t) => (t.enabled = camOn && !sleeping));
@@ -903,7 +906,7 @@ async function portal() {
     $('b-mic').classList.toggle('off', !micOn); $('b-mic').textContent = micOn ? 'Mic' : 'Mic off';
     $('b-cam').classList.toggle('off', !camOn); $('b-cam').textContent = camOn ? 'Camera' : 'Camera off';
     localVideo.style.opacity = camOn ? 1 : 0.25;
-    sendState(); renderNotices();
+    sendState(); renderNotices(); syncRec();
   }
   // Mute notices: our own mic/camera state, and the other campus's (sent over the signaling channel).
   let remoteState = null;
@@ -918,12 +921,82 @@ async function portal() {
     $('cam-off').classList.toggle('on', !!rCamOff);
     $('n-my-mic').classList.toggle('on', !micOn);
     $('n-my-cam').classList.toggle('on', !camOn);
+    $('n-my-cc').classList.toggle('on', !!cc.rec && !sleeping);
   }
   function sendState() { signal({ state: { mic: micOn, cam: camOn, sleep: sleeping } }); }
   onRemoteState = (st) => { remoteState = st; renderNotices(); };
   onLinkChange = () => { if (!(pc && pc.connectionState === 'connected')) remoteState = null; else sendState(); renderNotices(); };
   const toggleMic = () => { micOn = !micOn; applyMuteState(); };
   const toggleCam = () => { camOn = !camOn; applyMuteState(); };
+
+  // ---------- Captions ----------
+  // The browser's speech-to-text can only listen to a microphone on this computer, so each kiosk
+  // transcribes its OWN mic and sends the words to the other side, which shows them. A viewer turns
+  // captions on, that tells the other kiosk to start transcribing, and its words appear here.
+  // Uses Chrome/Edge's built-in speech service (audio goes to Google/Microsoft while captions are on).
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  function syncRec() {
+    const want = cc.peerWants && micOn && !sleeping && healthy() && !cc.fatal;
+    if (want && !cc.rec) startRec(); else if (!want && cc.rec) stopRec();
+    $('n-my-cc')?.classList.toggle('on', !!cc.rec && !sleeping);
+  }
+  function startRec() {
+    if (!SR) { signal({ ccErr: 'unsupported' }); cc.fatal = true; return; }
+    const rec = new SR();
+    rec.continuous = true; rec.interimResults = true; rec.lang = navigator.language || 'en-US';
+    rec.onresult = (e) => {
+      let fin = '', interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i]; if (r.isFinal) fin += r[0].transcript; else interim += r[0].transcript; }
+      if (fin.trim()) signal({ cc: { t: fin.trim(), f: 1 } });
+      else if (interim.trim() && Date.now() - cc.lastInterim > 250) { cc.lastInterim = Date.now(); signal({ cc: { t: interim.trim(), f: 0 } }); }
+      cc.backoff = 1000;
+    };
+    rec.onerror = (e) => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'language-not-supported') { cc.fatal = true; signal({ ccErr: e.error }); }
+      else if (e.error === 'network') cc.backoff = Math.min(cc.backoff * 2, 30000);
+    };
+    rec.onend = () => { // the service stops after pauses or errors; keep it going while captions are wanted
+      if (cc.rec !== rec) return;
+      cc.rec = null;
+      setTimeout(syncRec, cc.backoff);
+    };
+    cc.rec = rec;
+    // Prefer our echo-cancelled mic track (newer Chrome); older browsers ignore it and use the default mic.
+    const tr = localStream.getAudioTracks()[0];
+    try { rec.start(tr); } catch { try { rec.start(); } catch (err) { cc.rec = null; console.warn('captions', err); } }
+  }
+  function stopRec() { const r = cc.rec; cc.rec = null; if (r) { r.onend = null; try { r.abort(); } catch {} } }
+
+  // Receiving side: show the other campus's words.
+  let ccHide, ccLines = [];
+  function showCaption({ t, f }) {
+    const box = $('captions');
+    if (f) { ccLines = [...ccLines, t].slice(-2); box.querySelector('.cc-live').textContent = ''; }
+    else box.querySelector('.cc-live').textContent = t;
+    // Keep it to about two lines on screen: show the newest words, trimming the oldest.
+    let done = ccLines.join(' '); const live = box.querySelector('.cc-live').textContent, max = 150;
+    if (done.length + live.length > max) { const keep = Math.max(0, max - live.length); done = done.length > keep ? '… ' + done.slice(done.length - keep).replace(/^\S*\s/, '') : done; }
+    box.querySelector('.cc-done').textContent = done;
+    box.classList.add('on');
+    clearTimeout(ccHide); ccHide = setTimeout(() => { box.classList.remove('on'); ccLines = []; }, 7000);
+  }
+  function setCaptions(on, quiet) {
+    cc.iWant = on;
+    setParam('cc', on ? '1' : null);
+    $('b-cc').classList.toggle('on', on);
+    $('b-cc').textContent = on ? 'Captions on' : 'Captions';
+    if (!on) { $('captions').classList.remove('on'); ccLines = []; }
+    signal({ ccWant: on });
+    if (!quiet) toast(on ? (healthy() ? 'Captions on' : 'Captions on (they’ll start when the other campus connects)') : 'Captions off');
+  }
+  onCaptionSignal = (d) => {
+    if (d.ccWant !== undefined) { cc.peerWants = !!d.ccWant; if (!cc.peerWants) cc.fatal = false; syncRec(); return; }
+    if (d.ccErr) { if (cc.iWant) toast(d.ccErr === 'unsupported' ? 'Captions aren’t available in the other campus’s browser (use Chrome or Edge there)' : `Captions couldn’t start on the other side (${d.ccErr})`); return; }
+    if (d.cc && cc.iWant && typeof d.cc.t === 'string') showCaption({ t: d.cc.t.slice(0, 300), f: !!d.cc.f });
+  };
+  { const prev = onLinkChange; onLinkChange = () => { prev(); if (healthy()) signal({ ccWant: cc.iWant }); else { cc.peerWants = false; } syncRec(); }; }
+  const toggleCaptions = () => setCaptions(!cc.iWant);
+  setCaptions(cc.iWant, true);
 
   // ---------- Sleep mode ----------
   // Both kiosks follow the same schedule in Evansville time, so they go to sleep and wake up together.
@@ -1037,11 +1110,12 @@ async function portal() {
   $('p-close').onclick = toggleSettings;
   navigator.mediaDevices.addEventListener?.('devicechange', () => { if (document.body.classList.contains('show-settings')) fillDevices(); });
 
-  $('b-mic').onclick = toggleMic; $('b-cam').onclick = toggleCam; $('b-self').onclick = toggleSelf; $('b-settings').onclick = toggleSettings; $('b-frame').onclick = toggleFrames; $('b-stats').onclick = toggleStats; $('b-fs').onclick = toggleFs;
+  $('b-mic').onclick = toggleMic; $('b-cam').onclick = toggleCam; $('b-self').onclick = toggleSelf; $('b-settings').onclick = toggleSettings; $('b-frame').onclick = toggleFrames; $('b-cc').onclick = toggleCaptions; $('b-stats').onclick = toggleStats; $('b-fs').onclick = toggleFs;
   document.addEventListener('keydown', (e) => {
     if (e.target.closest?.('select, input, textarea')) return; // typing in the panel isn't a shortcut
     const k = e.key.toLowerCase();
     if (k === 'd') return toggleSettings();
+    if (k === 'c') return toggleCaptions();
     if (k === 't') { cycleTheme(); if (document.body.classList.contains('show-frames')) fillFrames(); return; }
     if (k === 'escape' && document.body.classList.contains('show-frames')) return toggleFrames();
     if (k === 'o') return cycleOrient();
