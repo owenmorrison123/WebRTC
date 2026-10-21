@@ -20,7 +20,7 @@ const THEME_DEFAULTS = {
   shape: 'rect', inset: 0, radius: 0, aspect: null, archRise: 0.4,
   border: { width: 0, color: 'transparent', gradient: null, spin: 0, innerWidth: 0, innerColor: null },
   glow: null, background: '#000', waiting: null,
-  overlay: null, overlayFit: 'stretch', accent: null, selfView: {}, logo: null, badges: null, shade: null,
+  overlay: null, overlayFit: 'stretch', accent: null, selfView: {}, logo: null, badges: null, shade: null, waitScreen: null,
 };
 // Theme lengths are numbers in px, or "N%" strings meaning % of the shorter screen side.
 const themeLen = (v, unit) => (typeof v === 'string' && v.trim().endsWith('%') ? parseFloat(v) * unit : Number(v) || 0);
@@ -60,7 +60,7 @@ function themeFor(theme, orient) {
   const ov = theme?.[orient];
   if (!ov) return theme;
   const sub = (k) => (ov[k] === null ? null : ov[k] === undefined ? theme[k] : { ...(theme[k] || {}), ...ov[k] });
-  return { ...theme, ...ov, border: sub('border'), glow: sub('glow'), logo: sub('logo'), selfView: sub('selfView') };
+  return { ...theme, ...ov, border: sub('border'), glow: sub('glow'), logo: sub('logo'), selfView: sub('selfView'), waitScreen: sub('waitScreen') };
 }
 function applyTheme(raw) { rawTheme = raw || null; renderTheme(); }
 function renderTheme() {
@@ -85,8 +85,21 @@ function renderTheme() {
     frame.classList.toggle('pulse', !!t.glow.pulse);
   } else { frame.style.removeProperty('--t-glow'); frame.classList.remove('pulse'); }
 
-  const framed = t.shape !== 'rect' || t.inset > 0 || t.border.width > 0;
-  if (t.waiting) root.setProperty('--t-wait', themeCss(base, t.waiting));
+  // Themed waiting screen: a campus background inside the portal, the logo inside the spinner, a wordmark.
+  const ws = t.waitScreen, ov = $('overlay'), ovLogo = $('ov-logo'), ovWord = $('ov-word');
+  $('wait-bg').style.background = ws?.background ? themeCss(base, ws.background) : '';
+  ov.classList.toggle('themed', !!ws);
+  if (ws?.logo) ovLogo.src = themeUrl(base, ws.logo); else ovLogo.removeAttribute('src');
+  if (ws?.wordmark) ovWord.src = themeUrl(base, ws.wordmark); else ovWord.removeAttribute('src');
+  ovLogo.style.visibility = ws?.logo ? '' : 'hidden'; ovWord.style.display = ws?.wordmark ? '' : 'none';
+  ovWord.style.filter = ws?.wordmarkFilter || '';
+  for (const [k, v] of [['--ring', ws?.ringSize], ['--logo', ws?.logoSize], ['--word', ws?.wordmarkSize], ['--wait-fg', ws?.color], ['--wait-muted', ws?.subColor], ['--ring-track', ws?.ringTrack]]) {
+    if (v != null) ov.style.setProperty(k, String(v)); else ov.style.removeProperty(k);
+  }
+
+  const framed = t.shape !== 'rect' || t.inset > 0 || themeLen(t.border.width, 1) > 0;
+  if (ws) root.setProperty('--t-wait', 'transparent'); // the campus background is drawn inside the portal instead
+  else if (t.waiting) root.setProperty('--t-wait', themeCss(base, t.waiting));
   else if (framed) root.setProperty('--t-wait', 'transparent'); // let the empty frame show while waiting
   else root.removeProperty('--t-wait');
   if (t.accent) root.setProperty('--accent', t.accent); else root.removeProperty('--accent');
@@ -301,6 +314,35 @@ async function portal() {
     setParam('theme', cfg.theme || null);
     toast(t ? `Theme: ${t.name}` : 'Theme: full screen');
   }
+  // Frame picker: one tap per frame, grouped by campus. Works any time, including mid-call.
+  function fillFrames() {
+    const list = $('f-list'); list.innerHTML = '';
+    const groups = new Map();
+    for (const t of [{ id: '', name: 'Full screen (no frame)', group: 'Other' }, ...themes]) {
+      const g = t.group || 'Other'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(t);
+    }
+    const order = [...groups.keys()].sort((a, b) => (a === 'Other') - (b === 'Other'));
+    for (const g of order) {
+      const h = document.createElement('h4'); h.textContent = g; list.appendChild(h);
+      const grid = document.createElement('div'); grid.className = 'fgrid'; list.appendChild(grid);
+      for (const t of groups.get(g)) {
+        const b = document.createElement('button'); b.className = 'fbtn' + (t.id === cfg.theme ? ' on' : '');
+        const sw = document.createElement('span'); sw.className = 'sw';
+        sw.style.background = themeCss(t.base || '', t.swatch || t.border?.gradient || t.border?.color || t.background || '#000');
+        if (!t.swatch && t.border?.innerColor) sw.style.boxShadow = `inset 0 0 0 2px ${t.border.innerColor}`;
+        if (!t.id) sw.style.border = '1px solid #3b4b5e';
+        const nm = document.createElement('span'); nm.textContent = t.name;
+        b.append(sw, nm);
+        b.onclick = () => { setTheme(t.id); fillFrames(); };
+        grid.appendChild(b);
+      }
+    }
+  }
+  const toggleFrames = () => {
+    document.body.classList.remove('show-settings');
+    if (document.body.classList.toggle('show-frames')) fillFrames();
+  };
+  $('f-close').onclick = toggleFrames;
   const cycleTheme = () => { const ids = ['', ...themes.map((t) => t.id)]; setTheme(ids[(ids.indexOf(cfg.theme) + 1) % ids.length]); };
 
   const clientId = crypto.randomUUID();
@@ -313,7 +355,9 @@ async function portal() {
   const status = (title, sub = '', show = true) => {
     $('ov-title').textContent = title; $('ov-sub').textContent = sub;
     $('overlay').classList.toggle('hidden', !show);
+    document.body.classList.toggle('waiting', show);
   };
+  document.body.classList.toggle('waiting', !$('overlay').classList.contains('hidden'));
   const setDot = (cls, text) => { $('dot').className = cls; $('label-text').textContent = text; };
   const wrongKey = () => {
     status('Wrong room key', cfg.key ? 'The key in this link doesn’t match the server. Enter the correct key:' : 'This portal needs a room key. Enter it below:');
@@ -772,16 +816,17 @@ async function portal() {
   $('p-res').onchange = guard((v) => setQuality({ res: v }));
   $('p-fps').onchange = guard((v) => setQuality({ fps: v }));
   $('p-bitrate').onchange = guard((v) => setQuality({ kbps: v }));
-  const toggleSettings = () => { const open = document.body.classList.toggle('show-settings'); if (open) fillDevices(); };
+  const toggleSettings = () => { document.body.classList.remove('show-frames'); const open = document.body.classList.toggle('show-settings'); if (open) fillDevices(); };
   $('p-close').onclick = toggleSettings;
   navigator.mediaDevices.addEventListener?.('devicechange', () => { if (document.body.classList.contains('show-settings')) fillDevices(); });
 
-  $('b-mic').onclick = toggleMic; $('b-cam').onclick = toggleCam; $('b-self').onclick = toggleSelf; $('b-settings').onclick = toggleSettings; $('b-stats').onclick = toggleStats; $('b-fs').onclick = toggleFs;
+  $('b-mic').onclick = toggleMic; $('b-cam').onclick = toggleCam; $('b-self').onclick = toggleSelf; $('b-settings').onclick = toggleSettings; $('b-frame').onclick = toggleFrames; $('b-stats').onclick = toggleStats; $('b-fs').onclick = toggleFs;
   document.addEventListener('keydown', (e) => {
     if (e.target.closest?.('select, input, textarea')) return; // typing in the panel isn't a shortcut
     const k = e.key.toLowerCase();
     if (k === 'd') return toggleSettings();
-    if (k === 't') return cycleTheme();
+    if (k === 't') { cycleTheme(); if (document.body.classList.contains('show-frames')) fillFrames(); return; }
+    if (k === 'escape' && document.body.classList.contains('show-frames')) return toggleFrames();
     if (k === 'o') return cycleOrient();
     if (k === 'r') return cycleRotate();
     if (k === 'escape' && document.body.classList.contains('show-settings')) return toggleSettings();
@@ -793,7 +838,7 @@ async function portal() {
   let idle;
   const wake = () => {
     document.body.classList.remove('hide-cursor'); document.body.classList.add('show-ui');
-    clearTimeout(idle); idle = setTimeout(() => { if (document.body.classList.contains('show-settings')) return wake(); document.body.classList.add('hide-cursor'); document.body.classList.remove('show-ui'); }, 3000);
+    clearTimeout(idle); idle = setTimeout(() => { if (document.body.matches('.show-settings, .show-frames')) return wake(); document.body.classList.add('hide-cursor'); document.body.classList.remove('show-ui'); }, 3000);
   };
   ['mousemove', 'touchstart', 'keydown'].forEach((ev) => document.addEventListener(ev, wake, { passive: true }));
   wake();

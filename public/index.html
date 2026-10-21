@@ -66,6 +66,30 @@
   #settings #p-actual { margin:12px 0 0; font-size:12px; color:var(--muted); min-height:16px; }
   #settings button { margin-top:12px; width:100%; padding:10px; border:0; border-radius:10px; background:var(--accent); color:#04121c; font:inherit; font-weight:600; cursor:pointer; }
   body.show-settings, body.show-settings * { cursor:auto !important; }
+  /* frame picker */
+  #frames { position:absolute; left:50%; bottom:90px; transform:translateX(-50%); width:min(560px, calc(100cqw - 32px)); max-height:calc(100cqh - 120px); overflow:auto; padding:16px; border-radius:14px; background:rgba(10,14,20,.94); border:1px solid #263241; z-index:7; display:none; }
+  body.show-frames #frames { display:block; }
+  body.show-frames, body.show-frames * { cursor:auto !important; }
+  #frames .fhead { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  #frames h3 { margin:0; font-size:16px; }
+  #frames .fhead span, #frames h4 { color:var(--muted); font-size:12px; }
+  #frames h4 { margin:14px 0 6px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; }
+  #frames .fgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; }
+  #frames .fbtn { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px; border:1px solid #263241; background:#070b10; color:var(--fg); font:13px/1.25 system-ui,sans-serif; text-align:left; cursor:pointer; }
+  #frames .fbtn:hover { border-color:#3b4b5e; }
+  #frames .fbtn.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+  #frames .sw { flex:none; width:34px; height:22px; border-radius:5px; box-sizing:border-box; }
+  #frames #f-close { margin-top:14px; width:100%; padding:10px; border:0; border-radius:10px; background:var(--accent); color:#04121c; font:inherit; font-weight:600; cursor:pointer; }
+  /* themed waiting screen */
+  #wait-bg { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .6s; border-radius:inherit; }
+  body.waiting #wait-bg { opacity:1; }
+  .ov-mark { position:relative; display:flex; align-items:center; justify-content:center; }
+  #ov-logo, #ov-word { display:none; }
+  #overlay.themed .ring { width:calc(var(--u) * var(--ring, 30)); height:calc(var(--u) * var(--ring, 30)); border-width:calc(var(--u) * .45); border-color:var(--ring-track, rgba(255,255,255,.18)); border-top-color:var(--accent); }
+  #overlay.themed #ov-logo { display:block; position:absolute; height:calc(var(--u) * var(--logo, 16)); width:auto; }
+  #overlay.themed #ov-word { display:block; height:calc(var(--u) * var(--word, 5)); width:auto; max-width:80%; }
+  #overlay.themed h1 { color:var(--wait-fg, #fff); text-shadow:0 2px 18px rgba(0,0,0,.35); }
+  #overlay.themed p { color:var(--wait-muted, rgba(255,255,255,.75)); }
 
   /* ---------- setup ---------- */
   #setup { display:none; height:100%; overflow:auto; padding:32px 16px; }
@@ -150,15 +174,20 @@
 
 <!-- Portal -->
 <section id="portal">
-  <div id="frame"><div id="stage"><video id="remote" autoplay playsinline></video><div id="shade"></div></div></div>
+  <div id="frame"><div id="stage"><video id="remote" autoplay playsinline></video><div id="wait-bg"></div><div id="shade"></div></div></div>
   <img id="art" alt="">
   <div id="logo"></div>
   <video id="local" autoplay muted playsinline></video>
   <div id="label"><span id="dot"></span><span id="label-text">Connecting…</span></div>
   <pre id="stats"></pre>
-  <div id="overlay"><div class="ring"></div><h1 id="ov-title">Starting portal…</h1><p id="ov-sub"></p><form id="ov-key"><input id="ov-key-input" placeholder="Room key" autocomplete="off" spellcheck="false"><button>Try again</button></form></div>
+  <div id="overlay"><div class="ov-mark"><div class="ring"></div><img id="ov-logo" alt=""></div><img id="ov-word" alt=""><h1 id="ov-title">Starting portal…</h1><p id="ov-sub"></p><form id="ov-key"><input id="ov-key-input" placeholder="Room key" autocomplete="off" spellcheck="false"><button>Try again</button></form></div>
   <div id="tap">Click anywhere to start audio</div>
   <div id="toast"></div>
+  <div id="frames">
+    <div class="fhead"><h3>Frame</h3><span>Changes only your screen. The call keeps going.</span></div>
+    <div id="f-list"></div>
+    <button id="f-close">Done</button>
+  </div>
   <div id="settings">
     <h3>Settings</h3>
     <label>Theme<select id="p-theme"></select></label>
@@ -181,6 +210,7 @@
     <button id="b-mic" title="Mute microphone (M)">Mic</button>
     <button id="b-cam" title="Turn camera off (V)">Camera</button>
     <button id="b-self" title="Show/hide your own video (H)">Hide self-view</button>
+    <button id="b-frame" title="Change the frame (T cycles)">Frame</button>
     <button id="b-settings" title="Camera, mic, speaker and quality (D)">Settings</button>
     <button id="b-stats" title="Connection stats (S)">Stats</button>
     <button id="b-fs" title="Fullscreen (F)">Fullscreen</button>

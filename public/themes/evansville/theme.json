@@ -1,6 +1,7 @@
 {
   "name": "University of Evansville",
   "order": 6,
+  "group": "Evansville",
   "shape": "rounded",
   "inset": 3,
   "radius": 34,
@@ -10,7 +11,10 @@
     "innerWidth": 3,
     "innerColor": "#f47b20"
   },
-  "glow": { "color": "rgba(244,123,32,0.30)", "size": 60 },
+  "glow": {
+    "color": "rgba(244,123,32,0.30)",
+    "size": 60
+  },
   "background": "radial-gradient(ellipse at center, #2b1649 0%, #150a26 60%, #0a0512 100%)",
   "accent": "#f47b20",
   "logo": {
@@ -21,5 +25,17 @@
     "plate": "rgba(79,38,131,0.88)",
     "color": "#ffffff"
   },
-  "selfView": { "radius": 14, "border": "#f47b20" }
+  "selfView": {
+    "radius": 14,
+    "border": "#f47b20"
+  },
+  "waitScreen": {
+    "background": "radial-gradient(ellipse at 50% 42%, #5f3199 0%, #40216f 55%, #241240 100%)",
+    "logo": "/themes/_assets/ue-logo.png",
+    "logoSize": 15,
+    "ringSize": 26,
+    "wordmark": "/themes/_assets/ue-wordmark.png",
+    "wordmarkSize": 4.6,
+    "wordmarkFilter": "invert(1)"
+  }
 }

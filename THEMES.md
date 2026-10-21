@@ -21,6 +21,8 @@ Every field is optional; anything left out uses the default.
 |---|---|---|
 | `name` | folder name | Name shown in the Theme list |
 | `order` | `50` | Position in the list; lower comes first |
+| `group` | `"Other"` | Heading the theme is listed under in the **Frame** picker, such as `"Evansville"` or `"Harlaxton"` |
+| `swatch` | border color | CSS background for the small color chip next to the theme's name in the Frame picker |
 | `shape` | `"rect"` | `"rect"`, `"rounded"`, `"circle"`, `"oval"` (an ellipse filling the portal, like a mirror) or `"arch"` |
 | `inset` | `0` | Gap between the screen edge and the portal, as a **percentage of the shorter screen side**. `3` is a good start |
 | `radius` | `0` | Corner radius in px for `rounded`, and for the bottom corners of `arch` |
@@ -39,6 +41,12 @@ Every field is optional; anything left out uses the default.
 | `background` | `"#000"` | CSS background for the area around the portal: a color, a gradient, or `"url(room.jpg) center/cover"` |
 | `waiting` | see note | CSS background behind the "Waiting for the other campus" message. With a border, the default is transparent, so the empty portal shows |
 | `shade` | `null` | A CSS background painted **over the video**, inside the portal, such as color fades along the edges. `var(--u)` is 1% of the shorter screen side, so `calc(var(--u) * 21)` is a band 21% as tall as a landscape screen. See `ue-fade` |
+| `waitScreen` | none | A campus-branded loading and waiting screen (fields below). Shown inside the portal while it starts, waits for the other campus or reconnects |
+| `waitScreen.background` | none | CSS background filling the inside of the portal, such as a campus-color gradient |
+| `waitScreen.logo` | none | Logo shown inside the spinning ring |
+| `waitScreen.logoSize` / `ringSize` | `16` / `30` | Logo height and ring diameter, as a % of the shorter screen side |
+| `waitScreen.wordmark` | none | Name image shown under the ring. `wordmarkSize` sets its height (default `5`) and `wordmarkFilter` a CSS filter, such as `"invert(1)"` to turn a black wordmark white |
+| `waitScreen.color` / `subColor` / `ringTrack` | white | Colors for the heading, the small text and the ring's faint track |
 | `overlay` | `null` | An image drawn on top of everything, such as hand-made frame artwork (see below) |
 | `overlayFit` | `"stretch"` | How the overlay fills the screen: `"stretch"`, `"cover"` or `"contain"` |
 | `accent` | blue | Accent color for the portal's controls and spinner |
@@ -125,6 +133,8 @@ Use an overlay when the border should look like real artwork, such as carved woo
 | `porthole` | Circular window with a metal ring |
 | `neon` | Rotating rainbow border with a pulsing glow |
 | `gallery` | Gilded picture frame drawn as an SVG overlay |
+
+Every Harlaxton and Evansville theme uses a campus waiting screen: maroon with the crest, or purple with the UE logo.
 
 ## Testing a theme
 

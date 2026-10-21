@@ -1,6 +1,7 @@
 {
   "name": "Harlaxton Manor",
   "order": 5,
+  "group": "Harlaxton",
   "shape": "arch",
   "inset": 3.5,
   "radius": 14,
@@ -11,7 +12,10 @@
     "innerWidth": 3,
     "innerColor": "rgba(60,44,20,0.65)"
   },
-  "glow": { "color": "rgba(255,214,140,0.26)", "size": 80 },
+  "glow": {
+    "color": "rgba(255,214,140,0.26)",
+    "size": 80
+  },
   "background": "radial-gradient(ellipse at 50% 22%, #2e261a 0%, #15100a 55%, #0b0805 100%)",
   "accent": "#e6c47e",
   "logo": {
@@ -22,5 +26,17 @@
     "plate": "rgba(24,17,8,0.62)",
     "color": "#f2e2bb"
   },
-  "selfView": { "radius": 12, "border": "#d6bd8c" }
+  "selfView": {
+    "radius": 12,
+    "border": "#d6bd8c"
+  },
+  "waitScreen": {
+    "background": "radial-gradient(ellipse at 50% 42%, #a0176a 0%, #6e0340 55%, #3c001d 100%)",
+    "logo": "/themes/_assets/harlaxton-crest.png",
+    "logoSize": 17,
+    "ringSize": 27,
+    "wordmark": "/themes/_assets/harlaxton-wordmark.png",
+    "wordmarkSize": 4.2,
+    "wordmarkFilter": "invert(1)"
+  }
 }

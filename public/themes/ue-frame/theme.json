@@ -1,6 +1,8 @@
 {
   "name": "Evansville custom 1 (purple frame)",
   "order": 1,
+  "group": "Evansville",
+  "swatch": "#4D2784",
   "shape": "rect",
   "inset": 0,
   "border": {
@@ -29,5 +31,14 @@
   "selfView": {
     "radius": 10,
     "border": "#f47b20"
+  },
+  "waitScreen": {
+    "background": "radial-gradient(ellipse at 50% 42%, #5f3199 0%, #40216f 55%, #241240 100%)",
+    "logo": "/themes/_assets/ue-logo.png",
+    "logoSize": 15,
+    "ringSize": 26,
+    "wordmark": "/themes/_assets/ue-wordmark.png",
+    "wordmarkSize": 4.6,
+    "wordmarkFilter": "invert(1)"
   }
 }

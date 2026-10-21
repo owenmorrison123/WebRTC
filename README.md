@@ -60,7 +60,7 @@ Allow camera and mic once ("Remember this decision") and turn off OS sleep and s
 | **V** | Camera on/off |
 | **H** | Show/hide your own video (self-view) |
 | **D** | Settings: switch camera, mic, speaker; change resolution, frame rate, bitrate, theme |
-| **T** | Cycle through themes (borders) |
+| **T** | Cycle through frames (themes); the **Frame** toolbar button opens a picker |
 | **O** | Cycle orientation: auto, landscape, portrait |
 | **R** | Cycle picture rotation (for a TV on its side) |
 | **]** / **[** | Lip-sync trim: delay audio / delay video by 20 ms per press |
@@ -86,7 +86,7 @@ For a life-size portal, mount the camera at eye level, centered just above (or b
 
 ### Themes
 
-Each kiosk can pick a border for its portal: the four custom campus designs (Evansville custom 1 and 2, Harlaxton custom 1 and 2), rounded, arch, porthole, neon, picture frame, or full screen. Every theme works in both landscape and portrait. Choose one in **Settings** or press **T**. To make your own, see **[THEMES.md](THEMES.md)**.
+Each kiosk can pick a border for its portal: the four custom campus designs (Evansville custom 1 and 2, Harlaxton custom 1 and 2), rounded, arch, porthole, neon, picture frame, or full screen. Every theme works in both landscape and portrait. Change it any time, including during a live call, with the **Frame** button on the toolbar: frames are grouped by campus, one tap switches, and the call keeps going. **T** cycles through them too. The loading and waiting screens follow the frame's campus: purple with the UE logo, or maroon with the Harlaxton crest. To make your own, see **[THEMES.md](THEMES.md)**.
 
 ### Changing camera, mic and quality during a call
 

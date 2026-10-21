@@ -1,6 +1,8 @@
 {
   "name": "Harlaxton custom 1 (maroon frame)",
   "order": 3,
+  "group": "Harlaxton",
+  "swatch": "#85044E",
   "shape": "rect",
   "inset": 0,
   "border": {
@@ -22,5 +24,14 @@
   "selfView": {
     "radius": 10,
     "border": "#ffffff"
+  },
+  "waitScreen": {
+    "background": "radial-gradient(ellipse at 50% 42%, #a0176a 0%, #6e0340 55%, #3c001d 100%)",
+    "logo": "/themes/_assets/harlaxton-crest.png",
+    "logoSize": 17,
+    "ringSize": 27,
+    "wordmark": "/themes/_assets/harlaxton-wordmark.png",
+    "wordmarkSize": 4.2,
+    "wordmarkFilter": "invert(1)"
   }
 }

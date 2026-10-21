@@ -1,6 +1,8 @@
 {
   "name": "Evansville custom 2 (purple fade)",
   "order": 2,
+  "group": "Evansville",
+  "swatch": "linear-gradient(#4E2884, #ece6f3 42%, #ece6f3 58%, #4E2884)",
   "shape": "rect",
   "inset": 0,
   "shade": "linear-gradient(to bottom, rgba(78,40,132,1) calc(var(--u) * 0), rgba(78,40,132,0.684) calc(var(--u) * 4.2), rgba(78,40,132,0.42) calc(var(--u) * 8.4), rgba(78,40,132,0.21) calc(var(--u) * 12.6), rgba(78,40,132,0.065) calc(var(--u) * 16.8), rgba(78,40,132,0) calc(var(--u) * 21)), linear-gradient(to top, rgba(78,40,132,1) calc(var(--u) * 0), rgba(78,40,132,0.684) calc(var(--u) * 4.2), rgba(78,40,132,0.42) calc(var(--u) * 8.4), rgba(78,40,132,0.21) calc(var(--u) * 12.6), rgba(78,40,132,0.065) calc(var(--u) * 16.8), rgba(78,40,132,0) calc(var(--u) * 21))",
@@ -47,5 +49,14 @@
   "selfView": {
     "radius": 10,
     "border": "#f47b20"
+  },
+  "waitScreen": {
+    "background": "radial-gradient(ellipse at 50% 42%, #5f3199 0%, #40216f 55%, #241240 100%)",
+    "logo": "/themes/_assets/ue-logo.png",
+    "logoSize": 15,
+    "ringSize": 26,
+    "wordmark": "/themes/_assets/ue-wordmark.png",
+    "wordmarkSize": 4.6,
+    "wordmarkFilter": "invert(1)"
   }
 }

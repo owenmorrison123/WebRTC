@@ -1,6 +1,8 @@
 {
   "name": "Harlaxton custom 2 (maroon fade)",
   "order": 4,
+  "group": "Harlaxton",
+  "swatch": "linear-gradient(#86064F, #f3e6ee 42%, #f3e6ee 58%, #86064F)",
   "shape": "rect",
   "inset": 0,
   "shade": "linear-gradient(to bottom, rgba(134,6,80,1) calc(var(--u) * 0), rgba(134,6,80,0.684) calc(var(--u) * 4.2), rgba(134,6,80,0.42) calc(var(--u) * 8.4), rgba(134,6,80,0.21) calc(var(--u) * 12.6), rgba(134,6,80,0.065) calc(var(--u) * 16.8), rgba(134,6,80,0) calc(var(--u) * 21)), linear-gradient(to top, rgba(134,6,80,1) calc(var(--u) * 0), rgba(134,6,80,0.684) calc(var(--u) * 4.2), rgba(134,6,80,0.42) calc(var(--u) * 8.4), rgba(134,6,80,0.21) calc(var(--u) * 12.6), rgba(134,6,80,0.065) calc(var(--u) * 16.8), rgba(134,6,80,0) calc(var(--u) * 21))",
@@ -47,5 +49,14 @@
   "selfView": {
     "radius": 10,
     "border": "#ffffff"
+  },
+  "waitScreen": {
+    "background": "radial-gradient(ellipse at 50% 42%, #a0176a 0%, #6e0340 55%, #3c001d 100%)",
+    "logo": "/themes/_assets/harlaxton-crest.png",
+    "logoSize": 17,
+    "ringSize": 27,
+    "wordmark": "/themes/_assets/harlaxton-wordmark.png",
+    "wordmarkSize": 4.2,
+    "wordmarkFilter": "invert(1)"
   }
 }
