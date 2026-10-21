@@ -331,6 +331,8 @@ async function setup() {
     if (f('s-rotate').value !== '0') p.set('rotate', f('s-rotate').value);
     if (!f('s-self').checked) p.set('self', '0');
     if (!f('s-clocks').checked) p.set('clocks', '0');
+    const sl = `${f('s-sleep-from').value || '19:00'}-${f('s-sleep-to').value || '05:00'}`;
+    if (!f('s-sleep').checked) p.set('sleep', 'off'); else if (sl !== '19:00-05:00') p.set('sleep', sl);
     if (f('s-contain').checked) p.set('fit', 'contain');
     if (f('s-stats').checked) p.set('stats', '1');
     const url = `${location.origin}${location.pathname}?${p}`;
@@ -338,16 +340,17 @@ async function setup() {
     store.set({ campus, room: f('s-room').value, key: f('s-key').value.trim(), label: f('s-label').value, res: f('s-res').value, fps: f('s-fps').value,
       bitrate: f('s-bitrate').value, codec: f('s-codec').value, rotate: f('s-rotate').value, theme: f('s-theme').value, orient: f('s-orient').value,
       cam: f('s-cam').value, mic: f('s-mic').value, spk: f('s-spk').value,
+      sleep: f('s-sleep').checked, sleepFrom: f('s-sleep-from').value, sleepTo: f('s-sleep-to').value,
       self: f('s-self').checked, clocks: f('s-clocks').checked, contain: f('s-contain').checked, stats: f('s-stats').checked });
     return url;
   };
   // Restore the last setup used on this computer (or a ?key= in the setup link).
-  for (const [id, k] of [['s-room', 'room'], ['s-key', 'key'], ['s-label', 'label'], ['s-res', 'res'], ['s-fps', 'fps'], ['s-bitrate', 'bitrate'], ['s-codec', 'codec'], ['s-rotate', 'rotate'], ['s-theme', 'theme'], ['s-orient', 'orient']]) {
+  for (const [id, k] of [['s-room', 'room'], ['s-key', 'key'], ['s-label', 'label'], ['s-res', 'res'], ['s-fps', 'fps'], ['s-bitrate', 'bitrate'], ['s-codec', 'codec'], ['s-rotate', 'rotate'], ['s-theme', 'theme'], ['s-orient', 'orient'], ['s-sleep-from', 'sleepFrom'], ['s-sleep-to', 'sleepTo']]) {
     if (saved[k] == null) continue;
     if (f(id).tagName !== 'SELECT' || [...f(id).options].some((o) => o.value === String(saved[k]))) f(id).value = saved[k];
   }
   for (const [id, k] of [['s-cam', 'cam'], ['s-mic', 'mic'], ['s-spk', 'spk']]) if (saved[k] && [...f(id).options].some((o) => o.value === saved[k])) f(id).value = saved[k];
-  for (const [id, k] of [['s-self', 'self'], ['s-clocks', 'clocks'], ['s-contain', 'contain'], ['s-stats', 'stats']]) if (saved[k] != null) f(id).checked = saved[k];
+  for (const [id, k] of [['s-self', 'self'], ['s-clocks', 'clocks'], ['s-sleep', 'sleep'], ['s-contain', 'contain'], ['s-stats', 'stats']]) if (saved[k] != null) f(id).checked = saved[k];
   if (Q.get('key')) f('s-key').value = Q.get('key');
   pickCampus(saved.campus || '', true);
   if (saved.cam || saved.mic) openMedia();
@@ -475,7 +478,7 @@ async function portal() {
   const clientId = crypto.randomUUID();
   const remoteVideo = $('remote'), localVideo = $('local');
   let localStream = null, pc = null, ws = null, polite = false, peerLabel = '';
-  let onRemoteState = null, onLinkChange = null; // set up by the controls section below
+  let onRemoteState = null, onLinkChange = null, onRemoteWake = null; // set up by the controls section below
   let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
   let gen = 0; // peer-connection generation; bumps on full rebuild
 
@@ -791,6 +794,7 @@ async function portal() {
 
   async function onSignal(data) {
     if (data.state) return onRemoteState?.(data.state);
+    if (data.wake) return onRemoteWake?.(data.wake);
     if (data.view) { remoteAspect = Number(data.view.aspect) || null; return adaptCapture(); }
     if (data.reset) { if (data.gen > gen) { gen = data.gen; rebuild(); } return; }
     if (data.gen !== gen || !pc) return; // stale message from an older connection
@@ -890,10 +894,11 @@ async function portal() {
   }
 
   // ---------- Controls ----------
-  let micOn = true, camOn = true;
+  let micOn = true, camOn = true, sleeping = false;
   function applyMuteState() {
-    localStream.getAudioTracks().forEach((t) => (t.enabled = micOn));
-    localStream.getVideoTracks().forEach((t) => (t.enabled = camOn));
+    localStream.getAudioTracks().forEach((t) => (t.enabled = micOn && !sleeping));
+    localStream.getVideoTracks().forEach((t) => (t.enabled = camOn && !sleeping));
+    remoteVideo.muted = sleeping; // no sound from the other side overnight
     $('b-mic').classList.toggle('off', !micOn); $('b-mic').textContent = micOn ? 'Mic' : 'Mic off';
     $('b-cam').classList.toggle('off', !camOn); $('b-cam').textContent = camOn ? 'Camera' : 'Camera off';
     localVideo.style.opacity = camOn ? 1 : 0.25;
@@ -904,19 +909,77 @@ async function portal() {
   function renderNotices() {
     const live = pc && pc.connectionState === 'connected';
     const who = peerLabel || 'The other campus';
-    const rMicOff = live && remoteState && remoteState.mic === false, rCamOff = live && remoteState && remoteState.cam === false;
+    const rSleep = live && remoteState?.sleep;
+    const rMicOff = live && !rSleep && remoteState && remoteState.mic === false, rCamOff = live && remoteState && (rSleep || remoteState.cam === false);
     $('n-remote-mic-text').textContent = `${who} is muted`;
-    $('n-remote-mic').classList.toggle('on', !!rMicOff);
-    $('cam-off-text').textContent = `${who} turned their camera off`;
+    $('n-remote-mic').classList.toggle('on', !!rMicOff && !sleeping);
+    $('cam-off-text').textContent = rSleep ? `${who}’s portal is asleep` : `${who} turned their camera off`;
     $('cam-off').classList.toggle('on', !!rCamOff);
     $('n-my-mic').classList.toggle('on', !micOn);
     $('n-my-cam').classList.toggle('on', !camOn);
   }
-  function sendState() { signal({ state: { mic: micOn, cam: camOn } }); }
+  function sendState() { signal({ state: { mic: micOn, cam: camOn, sleep: sleeping } }); }
   onRemoteState = (st) => { remoteState = st; renderNotices(); };
   onLinkChange = () => { if (!(pc && pc.connectionState === 'connected')) remoteState = null; else sendState(); renderNotices(); };
   const toggleMic = () => { micOn = !micOn; applyMuteState(); };
   const toggleCam = () => { camOn = !camOn; applyMuteState(); };
+
+  // ---------- Sleep mode ----------
+  // Both kiosks follow the same schedule in Evansville time, so they go to sleep and wake up together.
+  // While asleep the call stays connected (so waking is instant), but the camera and mic send nothing,
+  // the other side's sound is muted, and the screen shows a dim clock. sleep=HH:MM-HH:MM or sleep=off.
+  const SLEEP_TZ = 'America/Chicago';
+  const parseSleep = (v) => {
+    const m = /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(v || '');
+    return m ? { from: +m[1] * 60 + +m[2], to: +m[3] * 60 + +m[4] } : null;
+  };
+  const fmtHM = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+  let sleepCfg = Q.get('sleep') === 'off' ? null : parseSleep(Q.get('sleep') || '19:00-05:00');
+  let wakeUntil = 0; // a manual "wake up" lasts until this time
+  const tzFmt = new Intl.DateTimeFormat('en-US', { timeZone: SLEEP_TZ, hour: 'numeric', minute: 'numeric', hourCycle: 'h23' });
+  const minutesIn = (d) => { const p = Object.fromEntries(tzFmt.formatToParts(d).map((x) => [x.type, x.value])); return (+p.hour % 24) * 60 + +p.minute; };
+  const inSleep = (d) => {
+    if (!sleepCfg || sleepCfg.from === sleepCfg.to) return false;
+    const m = minutesIn(d), { from, to } = sleepCfg;
+    return from < to ? m >= from && m < to : m >= from || m < to;
+  };
+  const nextWake = () => { let t = Math.ceil(Date.now() / 60000) * 60000; for (let i = 0; i < 1500 && inSleep(new Date(t)); i++) t += 60000; return new Date(t); };
+  const timeIn = (d, tz) => d.toLocaleTimeString([], { timeZone: tz, hour: 'numeric', minute: '2-digit' });
+  function drawSleep() {
+    const p = clockParts();
+    $('sl-clocks').innerHTML = p.map(([n, t]) => `<div><span>${n}</span><b>${t}</b></div>`).join('');
+    const w = nextWake();
+    $('sl-msg').textContent = wakeUntil > Date.now() ? '' : `Wakes up at ${timeIn(w, 'America/Chicago')} in Evansville · ${timeIn(w, 'Europe/London')} at Harlaxton`;
+    // drift a little each minute so nothing burns into the screen
+    $('sl-inner').style.transform = `translate(${Math.round(Math.random() * 8 - 4)}cqw, ${Math.round(Math.random() * 8 - 4)}cqh)`;
+  }
+  function checkSleep() {
+    const want = inSleep(new Date()) && Date.now() > wakeUntil;
+    if (want !== sleeping) {
+      sleeping = want;
+      document.body.classList.toggle('sleeping', sleeping);
+      applyMuteState();
+      toast(sleeping ? 'Portal is going to sleep' : 'Good morning! Portal is awake');
+    }
+    if (sleeping) drawSleep();
+    $('b-sleep').textContent = sleepCfg ? (sleeping ? 'Wake up' : 'Sleep: on') : 'Sleep: off';
+  }
+  const wakeFor = (ms, fromPeer) => {
+    wakeUntil = Math.max(wakeUntil, Date.now() + ms);
+    if (!fromPeer) signal({ wake: wakeUntil });
+    checkSleep();
+    toast(`Awake until ${new Date(wakeUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`);
+  };
+  onRemoteWake = (until) => { if (until > wakeUntil && until - Date.now() < 3 * 3600e3) wakeFor(until - Date.now(), true); };
+  $('sl-wake').onclick = () => wakeFor(30 * 60e3);
+  $('b-sleep').onclick = () => { if (sleeping) wakeFor(30 * 60e3); else { document.body.classList.remove('show-frames'); if (!document.body.classList.contains('show-settings')) toggleSettings(); } };
+  const setSleepCfg = (on, from, to) => {
+    sleepCfg = on ? parseSleep(`${from}-${to}`) : null;
+    setParam('sleep', !sleepCfg ? 'off' : (`${from}-${to}` === '19:00-05:00' ? null : `${from}-${to}`));
+    wakeUntil = 0; checkSleep();
+  };
+  setInterval(checkSleep, 15000);
+  checkSleep();
   const toggleStats = () => document.body.classList.toggle('show-stats');
   // Self-view on/off during a call. Also updates the address bar so a reload or bookmark keeps the choice.
   const applySelf = () => {
@@ -950,6 +1013,7 @@ async function portal() {
     [{ id: '', name: 'Full screen (no border)' }, ...themes].forEach((t) => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; th.appendChild(o); });
     th.value = cfg.theme;
     $('p-clocks').checked = !document.body.classList.contains('no-clocks');
+    $('p-sleep').checked = !!sleepCfg; $('p-sleep-from').value = fmtHM(sleepCfg?.from ?? 1140); $('p-sleep-to').value = fmtHM(sleepCfg?.to ?? 300);
     $('p-orient').value = view.orient; $('p-rotate').value = String(view.rotate);
     $('p-res').value = cfg.res; $('p-fps').value = String(cfg.fps); $('p-bitrate').value = cfg.kbpsAuto ? '0' : String(cfg.kbps);
     if (![...$('p-bitrate').options].some((o) => o.value === $('p-bitrate').value)) { const o = document.createElement('option'); o.value = String(cfg.kbps); o.textContent = `${(cfg.kbps / 1000).toFixed(1)} Mbps`; $('p-bitrate').appendChild(o); $('p-bitrate').value = o.value; }
@@ -957,6 +1021,8 @@ async function portal() {
   }
   const guard = (fn) => async (e) => { const el = e.target; el.disabled = true; try { await fn(el.value); } catch (err) { toast(`Couldn’t switch: ${err.name || err.message}`); fillDevices(); } finally { el.disabled = false; } };
   $('p-theme').onchange = (e) => setTheme(e.target.value);
+  const sleepChanged = () => setSleepCfg($('p-sleep').checked, $('p-sleep-from').value || '19:00', $('p-sleep-to').value || '05:00');
+  $('p-sleep').onchange = sleepChanged; $('p-sleep-from').onchange = sleepChanged; $('p-sleep-to').onchange = sleepChanged;
   $('p-clocks').onchange = (e) => { document.body.classList.toggle('no-clocks', !e.target.checked); setParam('clocks', e.target.checked ? null : '0'); };
   $('p-orient').onchange = (e) => setView(e.target.value, view.rotate);
   $('p-rotate').onchange = (e) => setView(view.orient, Number(e.target.value));

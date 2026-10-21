@@ -44,6 +44,7 @@ Then press **Start portal** and bookmark the page that opens (or set it as the b
 ### In the portal
 
 - **Clocks:** both campus times are shown at the top right (Evansville and Harlaxton). Turn them off in **Settings** or with `clocks=0`.
+- **Sleep mode:** by default the portal sleeps from **7:00 PM to 5:00 AM Evansville time** (1:00 AM to 11:00 AM at Harlaxton). Both screens use the same Evansville-time schedule, so they sleep and wake together automatically, with no one touching anything, and daylight-saving changes are handled. While asleep, the camera and mic send nothing, the other side's sound is muted, and the screen shows a dim clock with the wake-up time. The call stays connected, so waking is instant. To wake it early, move the mouse or tap the screen and press **Wake it up for 30 minutes**; the other campus wakes up too. Change or turn off the schedule in **Settings** (or **Advanced settings** on the setup page), or with `sleep=21:00-06:00` / `sleep=off`.
 - **Mute notices:** when the other campus mutes, a red "Harlaxton College is muted" notice appears at the top, and "turned their camera off" shows over their picture. Your own screen shows "Your mic is off" or "Your camera is off" while you're muted, even when the toolbar is hidden.
 
 ### Kiosk machine (recommended)
@@ -123,6 +124,7 @@ Each site's settings control the video it **sends**. To make the England feed sh
 | `rotate` | `0` | `90` or `270`: rotate the whole portal for a TV on its side |
 | `cam` / `mic` / `spk` | default | Device IDs (the setup page fills these) |
 | `clocks=0` | — | Hide the two campus clocks |
+| `sleep` | `19:00-05:00` | Overnight sleep window in Evansville time (`HH:MM-HH:MM`), or `off` |
 | `self=0` | — | Start with self-view hidden (toggle any time with **H** or the toolbar) |
 | `fit=contain` | — | Letterbox instead of crop-to-fill |
 | `stats=1` | — | Show stats on start |
