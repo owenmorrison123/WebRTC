@@ -12,6 +12,7 @@ const PORT = Number(process.env.PORT || 8080);
 const ROOM_KEY = (process.env.ROOM_KEY || '').trim();          // shared secret; empty = no check
 const GRACE_MS = Number(process.env.GRACE_MS || 15000); // keep a dropped peer's slot this long
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const STARTED = Date.now();
 
 // ---------- ICE (STUN/TURN) config ----------
 async function iceServers() {
@@ -66,7 +67,20 @@ function handler(req, res) {
       res.end(JSON.stringify({ iceServers: servers, turn: hasTurn(servers) }));
     });
   }
-  if (url.pathname === '/health') { res.writeHead(200); return res.end('ok'); }
+  if (url.pathname === '/health') { res.writeHead(200, { 'Cache-Control': 'no-store' }); return res.end('ok'); }
+  if (url.pathname === '/status') {
+    // Who's connected, for the status page. Needs the room key, like everything else.
+    if (!keyOk(url.searchParams.get('key'))) { res.writeHead(403); return res.end('forbidden'); }
+    const now = Date.now();
+    const out = { serverUptime: Math.round((now - STARTED) / 1000), rooms: [] };
+    for (const [name, room] of rooms) {
+      out.rooms.push({ room: name, peers: [...room.values()].map((p) => ({
+        label: p.label, since: p.joinedAt, online: !p.graceTimer, report: p.report || null, reportAge: p.report ? Math.round((now - p.report.at) / 1000) : null,
+      })) });
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify(out));
+  }
   if (url.pathname === '/themes') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
     return res.end(JSON.stringify(listThemes()));
@@ -137,7 +151,7 @@ wss.on('connection', (ws, req) => {
     if (room.size >= 2) { send(ws, { type: 'error', reason: 'room-full' }); return ws.close(4002, 'room full'); }
     const other = others(room, id)[0];
     const polite = other ? !other[1].polite : false;
-    room.set(id, { ws, polite, label, graceTimer: null });
+    room.set(id, { ws, polite, label, graceTimer: null, joinedAt: Date.now() });
     send(ws, { type: 'joined', polite, peer: other ? { id: other[0], label: other[1].label } : null });
     if (other) send(other[1].ws, { type: 'peer-joined', peer: { id, label } });
     log(`[${roomName}] ${id} joined (${room.size}/2) polite=${polite}`);
@@ -146,6 +160,10 @@ wss.on('connection', (ws, req) => {
   ws.on('message', (data) => {
     let msg; try { msg = JSON.parse(data); } catch { return; }
     if (msg.type === 'signal') for (const [, p] of others(room, id)) send(p.ws, { type: 'signal', data: msg.data });
+    else if (msg.type === 'ping') send(ws, { type: 'pong' }); // lets the page notice a dead connection quickly
+    else if (msg.type === 'report' && msg.data && typeof msg.data === 'object') {
+      const me = room.get(id); if (me) me.report = { ...msg.data, at: Date.now() };
+    }
   });
 
   ws.on('close', () => {

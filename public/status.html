@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portal status</title>
+<style>
+  :root { --bg:#05070a; --card:#0d131b; --line:#1d2733; --fg:#e8edf2; --muted:#8a96a3; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; padding:28px 16px; }
+  main { max-width:760px; margin:0 auto; }
+  h1 { margin:0 0 4px; font-size:24px; font-weight:650; }
+  .sub { color:var(--muted); margin:0 0 20px; }
+  form { display:flex; gap:8px; margin-bottom:20px; }
+  input { flex:1; padding:10px 12px; border-radius:10px; border:1px solid #263241; background:#070b10; color:var(--fg); font:inherit; }
+  button { padding:10px 16px; border:0; border-radius:10px; background:#38bdf8; color:#04121c; font:inherit; font-weight:600; cursor:pointer; }
+  .room { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  .room h2 { margin:0 0 10px; font-size:16px; color:var(--muted); font-weight:600; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .kiosk { border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .kiosk .name { font-weight:600; font-size:16px; display:flex; align-items:center; gap:8px; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--bad); flex:none; }
+  .dot.ok { background:var(--ok); } .dot.warn { background:var(--warn); } .dot.sleep { background:#64748b; }
+  .state { margin:4px 0 8px; }
+  dl { display:grid; grid-template-columns:auto 1fr; gap:2px 12px; margin:0; font-size:13px; }
+  dt { color:var(--muted); } dd { margin:0; }
+  .empty { color:var(--muted); }
+  .foot { color:var(--muted); font-size:13px; margin-top:16px; }
+  @media (max-width:600px) { .grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Portal status</h1>
+  <p class="sub">Live view of both kiosks. Refreshes every 10 seconds.</p>
+  <form id="f"><input id="key" placeholder="Room key" autocomplete="off" spellcheck="false"><button>Show</button></form>
+  <div id="out"></div>
+  <p class="foot" id="foot"></p>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const q = new URLSearchParams(location.search);
+let key = q.get('key') || '';
+try { key = key || localStorage.getItem('portal-status-key') || ''; } catch {}
+$('key').value = key;
+const dur = (s) => s == null ? '–' : s < 90 ? `${s} s` : s < 5400 ? `${Math.round(s / 60)} min` : s < 172800 ? `${(s / 3600).toFixed(1)} h` : `${Math.round(s / 86400)} days`;
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function kiosk(p) {
+  const r = p.report, stale = p.reportAge == null || p.reportAge > 75;
+  let cls = 'bad', state = 'Offline (page closed or computer off)';
+  if (p.online && r && !stale) {
+    if (r.sleeping) { cls = 'sleep'; state = 'Sleeping'; }
+    else if (r.connected) { cls = 'ok'; state = `Live with ${esc(r.peer || 'the other campus')}`; }
+    else { cls = 'warn'; state = 'Open, waiting for the other campus'; }
+  } else if (p.online) { cls = 'warn'; state = 'Open, no recent report'; }
+  const rows = r ? [
+    ['Video in', r.fps != null ? `${Math.round(r.fps)} fps` : '–'], ['Round trip', r.rtt != null ? `${r.rtt} ms` : '–'], ['Path', esc(r.path || '–')],
+    ['Mic / camera', `${r.mic ? 'on' : '<b>off</b>'} / ${r.cam ? 'on' : '<b>off</b>'}`], ['Frame', esc(r.theme)],
+    ['Page open for', dur(r.uptime)], ['Last report', `${dur(p.reportAge)} ago`], ['Version', esc(r.version || '–')],
+  ] : [['Connected for', dur(Math.round((Date.now() - p.since) / 1000))]];
+  return `<div class="kiosk"><div class="name"><span class="dot ${cls}"></span>${esc(p.label || 'Unnamed kiosk')}</div><div class="state">${state}</div>
+    <dl>${rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl></div>`;
+}
+async function load() {
+  if (!key) { $('out').innerHTML = '<p class="empty">Enter the room key to see the kiosks.</p>'; return; }
+  try {
+    const r = await fetch(`/status?key=${encodeURIComponent(key)}`, { cache: 'no-store' });
+    if (r.status === 403) { $('out').innerHTML = '<p class="empty">That key doesn’t match.</p>'; return; }
+    const d = await r.json();
+    $('out').innerHTML = d.rooms.length ? d.rooms.map((room) => `<div class="room"><h2>Room “${esc(room.room)}”</h2><div class="grid">${room.peers.map(kiosk).join('')}${room.peers.length < 2 ? '<div class="kiosk empty">The other kiosk isn’t connected.</div>' : ''}</div></div>`).join('')
+      : '<p class="empty">No kiosks are connected right now.</p>';
+    $('foot').textContent = `Server up for ${dur(d.serverUptime)} · updated ${new Date().toLocaleTimeString()}`;
+  } catch { $('out').innerHTML = '<p class="empty">Can’t reach the server right now. It may be restarting; this page keeps trying.</p>'; }
+}
+$('f').onsubmit = (e) => { e.preventDefault(); key = $('key').value.trim(); try { localStorage.setItem('portal-status-key', key); } catch {} load(); };
+load(); setInterval(load, 10000);
+</script>
+</body>
+</html>

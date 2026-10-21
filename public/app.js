@@ -6,6 +6,7 @@ const Q = new URLSearchParams(location.search);
 
 // Bitrate caps are for 30 fps; 60 fps gets 1.6× (see autoKbps). The encoder still adapts downwards
 // to what the network can carry; these are ceilings, not targets.
+const APP_VERSION = '2026-10-21';
 const PRESETS = {
   540:  { w: 960,  h: 540,  kbps: 1500 },
   720:  { w: 1280, h: 720,  kbps: 3000 },
@@ -665,13 +666,13 @@ async function portal() {
   if (cfg.spk && remoteVideo.setSinkId) remoteVideo.setSinkId(cfg.spk).catch((e) => console.warn('setSinkId', e));
 
   // ---------- Signaling (WebSocket with auto-reconnect) ----------
-  let wsBackoff = 500;
+  let wsBackoff = 500, lastPong = Date.now();
   function connectWs() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const p = new URLSearchParams({ room: cfg.room, id: clientId, label: cfg.label, key: cfg.key });
     ws = new WebSocket(`${proto}://${location.host}/ws?${p}`);
-    ws.onopen = () => { wsBackoff = 500; };
-    ws.onmessage = (e) => onWsMessage(JSON.parse(e.data));
+    ws.onopen = () => { wsBackoff = 500; lastPong = Date.now(); };
+    ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.type === 'pong') { lastPong = Date.now(); return; } onWsMessage(m); };
     ws.onclose = (e) => {
       if (e.code === 4001) return wrongKey();
       if (e.code === 4002) status('Room is full', 'Two portals are already connected in this room. Retrying…');
@@ -1102,6 +1103,7 @@ async function portal() {
       ? ((inV.totalProcessingDelay - prev.inV.totalProcessingDelay) / (inV.framesDecoded - prev.inV.framesDecoded)) * 1000
       : (vJb != null ? vJb + (decMs || 0) : null);
     updateSync(vProc);
+    checkFlow(inV, outV, rtt, path);
     if (!document.body.classList.contains('show-stats')) { prev = { inV, inA, outV }; return; }
     const avGap = vProc != null && aJb != null ? Math.round(vProc - aJb) : null;
     // Rough one-way "glass-to-glass": capture+render (~1 frame each) + encode + network + jitter buffer + decode.
@@ -1131,6 +1133,65 @@ async function portal() {
   limited by  ${outV?.qualityLimitationReason || '–'}`;
     prev = { inV, inA, outV };
   }, 1000);
+
+  // ---------- Self-healing, for running 24/7 ----------
+  // Each problem gets the gentlest fix first (restart the connection, reopen the camera) and a full page
+  // reload only if that doesn't work. A reload happens only when the server is reachable, so the page
+  // never swaps itself for a browser error page, and at most a few times an hour so it can't loop.
+  const bootAt = Date.now();
+  const health = { inFrames: null, inAt: Date.now(), outFrames: null, outAt: Date.now(), netFixes: [], camFixes: [], badSince: null, rtt: null, fps: null, path: '' };
+  const recent = (arr) => arr.filter((t) => Date.now() - t < 10 * 60e3);
+  async function reloadSoon(reason) {
+    console.warn('self-heal: reload —', reason);
+    let n = []; try { n = JSON.parse(sessionStorage.getItem('portal-reloads') || '[]').filter((t) => Date.now() - t < 3600e3); } catch {}
+    if (n.length >= 4) { console.warn('self-heal: too many reloads this hour, waiting'); return; }
+    try { const r = await fetch('/health', { cache: 'no-store' }); if (!r.ok) return; } catch { return; } // server down: keep this page, retry later
+    try { sessionStorage.setItem('portal-reloads', JSON.stringify([...n, Date.now()])); } catch {}
+    location.reload();
+  }
+  // Called once a second from the stats loop while connected.
+  function checkFlow(inV, outV, rtt, path) {
+    const now = Date.now();
+    health.rtt = rtt; health.fps = inV?.framesPerSecond ?? null; health.path = path;
+    const remoteIdle = sleeping || remoteState?.sleep || remoteState?.cam === false;
+    if (inV && inV.framesDecoded !== health.inFrames) { health.inFrames = inV.framesDecoded; health.inAt = now; } else if (remoteIdle) health.inAt = now;
+    const localIdle = sleeping || !camOn;
+    if (outV && outV.framesEncoded !== health.outFrames) { health.outFrames = outV.framesEncoded; health.outAt = now; } else if (localIdle) health.outAt = now;
+    if (now - health.inAt > 20000) { // the other campus's picture has been frozen for 20 s
+      health.inAt = now; health.netFixes = [...recent(health.netFixes), now];
+      if (health.netFixes.length <= 1) { console.warn('self-heal: video froze, restarting connection'); pc.restartIce(); }
+      else reloadSoon('incoming video keeps freezing');
+    }
+    if (now - health.outAt > 20000) { // our camera stopped producing frames
+      health.outAt = now; health.camFixes = [...recent(health.camFixes), now];
+      if (health.camFixes.length <= 2) { console.warn('self-heal: camera stalled, reopening it'); onTrackEnded(); }
+      else reloadSoon('camera keeps stalling');
+    }
+  }
+  setInterval(() => {
+    const now = Date.now();
+    // Signaling socket silently dead (no pong for a minute): drop it and reconnect.
+    if (ws?.readyState === 1) {
+      try { ws.send(JSON.stringify({ type: 'ping' })); } catch {}
+      if (now - lastPong > 65000) { const old = ws; old.onclose = null; try { old.close(); } catch {} setTimeout(connectWs, 500); lastPong = now; }
+    }
+    // Stuck: the other campus is there (or the server is unreachable) but we haven't connected for 3 minutes.
+    const fine = sleeping || healthy() || (!peerPresent && ws?.readyState === 1);
+    if (fine) health.badSince = null; else if (!health.badSince) health.badSince = now; else if (now - health.badSince > 3 * 60e3) { health.badSince = now; reloadSoon('not connected for 3 minutes'); }
+    // Report to the status page.
+    if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'report', data: {
+      connected: healthy(), sleeping, peer: peerLabel || null, mic: micOn, cam: camOn, fps: health.fps, rtt: health.rtt != null ? Math.round(health.rtt) : null,
+      path: health.path, theme: cfg.theme || 'full screen', uptime: Math.round((now - bootAt) / 1000), version: APP_VERSION,
+    } }));
+  }, 20000);
+  // Daily fresh start: reload once a day at 3 AM Evansville time (while asleep, or anyway if sleep is off).
+  // Clears any slow memory build-up in the browser and picks up new versions of the portal.
+  setInterval(() => {
+    const m = minutesIn(new Date());
+    if (m >= 180 && m < 195 && Date.now() - bootAt > 6 * 3600e3 && (sleeping || !sleepCfg)) reloadSoon('daily refresh');
+  }, 60000);
+  // Keep the free server awake (it naps after 15 minutes with no web requests).
+  setInterval(() => fetch('/health', { cache: 'no-store' }).catch(() => {}), 4 * 60e3);
 
   // ---------- Go ----------
   waiting();

@@ -49,7 +49,7 @@ Then press **Start portal** and bookmark the page that opens (or set it as the b
 
 ### Kiosk machine (recommended)
 
-Run Chrome or Edge in kiosk mode so it opens fullscreen and plays sound without a click:
+The easiest way is the launcher in the **`kiosk/`** folder (see **Running 24/7** below). To start Chrome by hand instead, run it in kiosk mode so it opens fullscreen and plays sound without a click:
 
 ```bash
 # Windows
@@ -220,7 +220,52 @@ The browser lines audio up with video using RTP timestamps. It can't see delay a
 
 Some delay happens before the video is sent, for example in a laggy USB camera or HDMI capture card. Neither side can measure it. Fix it by ear on the receiving screen: press **]** to delay audio, or **[** to delay video, 20 ms per press. The setting is saved in the address bar, so bookmark the page afterwards. Press **S** to see the **lip sync** line.
 
-## 6. Tips for the lowest delay
+## 6. Running 24/7
+
+The portal is built to be opened once and left alone.
+
+**What the portal does by itself**
+
+| Problem | What happens |
+|---|---|
+| Internet drops, Wi-Fi blips, router restarts | Reconnects on its own, usually within seconds |
+| The other campus's picture freezes | After 20 s it restarts the connection; if it keeps freezing, it reloads the page |
+| This kiosk's camera stops sending (USB glitch, unplugged and replugged) | After 20 s it reopens the camera; if that keeps happening, it reloads the page |
+| Connection to the server silently dies | Noticed within about a minute and reconnected |
+| Server restarts or redeploys | The live call keeps going (video is peer-to-peer); the page reconnects to the server in the background |
+| Stuck "Connecting…" for 3 minutes | Reloads the page |
+| Slow build-up after days of running | Reloads itself once a day at 3 AM Evansville time, while it's asleep |
+| Free server napping after 15 minutes idle | Each kiosk pings it every 4 minutes so it stays awake |
+
+A page reload only happens when the server is reachable (so the kiosk never ends up on a browser error page), and at most 4 times an hour (so it can't get stuck in a loop).
+
+**What the launcher does** (`kiosk/` folder)
+
+The page can't restart the browser itself, so each kiosk computer should start the portal with the launcher:
+
+- **Windows:** `start-portal-windows.bat`
+- **Mac:** `start-portal-mac.command`
+
+It opens the portal full screen in its own Chrome window, allows the camera, mic and sound without prompts, and **reopens Chrome within a minute if it closes or crashes**. It also restarts Chrome once a day at 3:30 AM. On a Mac it keeps the computer and screen awake.
+
+1. Copy the `kiosk` folder onto the kiosk computer.
+2. Paste that kiosk's portal link (the address of the portal page after **Start portal**) as the only line in `portal-url.txt`.
+3. Make it run at startup. **Windows:** press Win+R, type `shell:startup`, and put a shortcut to the `.bat` file in that folder. **Mac:** System Settings → General → Login Items → add the `.command` file.
+
+**One-time computer settings** (these matter as much as the software)
+
+- **Auto sign-in** to the computer's account, so it comes back after a power cut or update without someone typing a password.
+- **Never sleep, no screen saver.** Windows: Settings → System → Power → Screen and sleep → Never. Mac: the launcher handles it, and set Lock Screen → "Turn display off" to Never.
+- **Restart after a power failure:** Windows BIOS "Restore on AC power loss" → On. Mac: System Settings → Energy → "Start up automatically after a power failure".
+- **Updates at night:** Windows Update → Active hours set to cover the daytime, so restarts happen overnight. The launcher brings everything back afterwards.
+- **Wired Ethernet**, and if possible a small UPS (battery backup) so brief power flickers don't reboot the computer.
+- **iPads:** turn on Guided Access (Settings → Accessibility) so the portal can't be closed, and set Auto-Lock to Never. Keep it plugged in.
+
+**Checking on it from anywhere**
+
+Open **`/status.html`** on the portal site (for example `https://campus-portal-5m57.onrender.com/status.html`) and enter the room key. It shows each kiosk as live, waiting, sleeping or offline, with frame rate, connection quality, how long the page has been running and when it last checked in.
+
+## 7. Tips for the lowest delay
 
 1. **Wired Ethernet** at both ends, with no VPN on the kiosk machines.
 2. Use **direct P2P** if at all possible. Ask IT to allow UDP.
@@ -236,7 +281,9 @@ Some delay happens before the video is sent, for example in a laggy USB camera o
 server.js         signaling + static server + TURN credential minting
 public/index.html setup page + portal UI
 public/app.js     WebRTC client (perfect negotiation, auto-recovery, tuning, stats, themes)
+public/status.html status page for checking on both kiosks
 public/themes/    one folder per theme (see THEMES.md)
+kiosk/            launchers that keep the portal open on the kiosk computers
 THEMES.md         how to make a theme
 Dockerfile
 ```
