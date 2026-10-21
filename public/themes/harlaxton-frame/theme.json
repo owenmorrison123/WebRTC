@@ -1,0 +1,26 @@
+{
+  "name": "Harlaxton custom 1 (maroon frame)",
+  "order": 3,
+  "shape": "rect",
+  "inset": 0,
+  "border": {
+    "width": "5.8%",
+    "color": "#85044E"
+  },
+  "background": "#85044E",
+  "waiting": "transparent",
+  "accent": "#d9a5c3",
+  "badges": [
+    {
+      "file": "/themes/_assets/harlaxton-crest.png",
+      "text": "Harlaxton",
+      "position": "bottom-left",
+      "size": 17.1,
+      "margin": 0.9
+    }
+  ],
+  "selfView": {
+    "radius": 10,
+    "border": "#ffffff"
+  }
+}

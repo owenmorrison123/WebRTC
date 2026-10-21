@@ -26,7 +26,7 @@ Every field is optional; anything left out uses the default.
 | `radius` | `0` | Corner radius in px for `rounded`, and for the bottom corners of `arch` |
 | `archRise` | `0.4` | `arch` only: how tall the curved top can be, as a fraction of the portal's height. On portrait screens the top is always a true half-circle |
 | `aspect` | `null` | Lock the portal's shape, such as `"4:5"` or `"1:1"`. `null` fills the available space. `circle` is always `1:1`. Video is cropped to fit |
-| `border.width` | `0` | Border thickness in px |
+| `border.width` | `0` | Border thickness in px, or a string like `"5.8%"` meaning a percentage of the shorter screen side (scales with the screen, recommended) |
 | `border.color` | `"transparent"` | Solid border color, any CSS color |
 | `border.gradient` | `null` | Any CSS background used for the border instead of `color`: a gradient, or an image such as `"url(stone.jpg) center/cover"` |
 | `border.innerWidth` | `0` | Thin accent line just inside the border, in px |
@@ -38,18 +38,23 @@ Every field is optional; anything left out uses the default.
 | `glow.pulse` | `false` | `true` makes the glow breathe slowly |
 | `background` | `"#000"` | CSS background for the area around the portal: a color, a gradient, or `"url(room.jpg) center/cover"` |
 | `waiting` | see note | CSS background behind the "Waiting for the other campus" message. With a border, the default is transparent, so the empty portal shows |
+| `shade` | `null` | A CSS background painted **over the video**, inside the portal, such as color fades along the edges. `var(--u)` is 1% of the shorter screen side, so `calc(var(--u) * 21)` is a band 21% as tall as a landscape screen. See `ue-fade` |
 | `overlay` | `null` | An image drawn on top of everything, such as hand-made frame artwork (see below) |
 | `overlayFit` | `"stretch"` | How the overlay fills the screen: `"stretch"`, `"cover"` or `"contain"` |
 | `accent` | blue | Accent color for the portal's controls and spinner |
-| `logo.file` | none | Logo image in the theme folder (PNG with transparent background, or SVG) |
-| `logo.text` | none | Text badge to show instead when there's no `file` yet |
-| `logo.position` | `"bottom-left"` | `"bottom-left"`, `"bottom-right"`, `"top-left"` or `"top-right"` |
-| `logo.size` | `6` | Logo height as a **percentage of the shorter screen side** |
-| `logo.margin` | `2` | Gap from the corner, same units as `size` |
-| `logo.anchor` | `"frame"` | `"frame"` places the logo inside the portal's corner; `"screen"` uses the screen corner (better for circles) |
-| `logo.plate` | none | CSS background behind the logo for contrast, such as `"rgba(0,0,0,0.5)"` |
-| `logo.color` | white | Text color for a text badge |
-| `logo.opacity` | `1` | Logo transparency |
+| `badges` | none | A list of logos and wordmarks, each with the fields below. Use this for more than one |
+| `logo` | none | A single badge (older form of `badges`; both work, and can be used together) |
+| `….file` | none | Image in the theme folder (PNG with transparent background, or SVG). Shared images in `public/themes/_assets/` are used as `"/themes/_assets/ue-logo.png"` |
+| `….text` | none | Text badge to show instead when there's no `file` yet (also the image's alt text) |
+| `….position` | `"bottom-left"` | `"bottom-left"`, `"bottom-center"`, `"bottom-right"`, `"top-left"`, `"top-center"`, `"top-right"`, `"left"`, `"right"` or `"center"` |
+| `….size` | `6` | Height as a **percentage of the shorter screen side** |
+| `….margin` | `2` | Gap from the edge, same units as `size`. `marginX` / `marginY` set the sideways and up/down gaps separately |
+| `….anchor` | `"frame"` | `"frame"` measures from the inside edge of the portal; `"screen"` from the screen edge (better for circles); `"border"` centers the badge inside the border band on its side (like a name printed on a frame) |
+| `….plate` | none | CSS background behind the badge for contrast, such as `"rgba(0,0,0,0.5)"` |
+| `….color` | white | Text color for a text badge |
+| `….font` | page font | Font for a text badge, such as `"Georgia, serif"` |
+| `….filter` | none | CSS filter on the badge. `"invert(1)"` turns a black wordmark white; `"drop-shadow(0 0 calc(var(--u) * 0.6) white)"` adds a soft glow |
+| `….opacity` | `1` | Badge transparency |
 | `selfView.shape` | rounded | `"rounded"`, `"rect"` or `"circle"` for your own small video |
 | `selfView.radius` | `10` | Corner radius in px for the self-view |
 | `selfView.border` | faint white | Self-view border color |
@@ -66,11 +71,13 @@ Any field can be overridden for one orientation by putting it in a `"portrait"` 
 }
 ```
 
-Nested sections (`border`, `glow`, `logo`, `selfView`) are merged, so `"portrait": { "logo": { "size": 3.5 } }` changes only the logo size. Overlay artwork usually needs one image per orientation: `"overlay": "frame.png", "portrait": { "overlay": "frame-portrait.png" }`.
+Nested sections (`border`, `glow`, `logo`, `selfView`) are merged, so `"portrait": { "logo": { "size": 3.5 } }` changes only the logo size. A `badges` list is replaced as a whole: the campus fade themes use this to stack the logo above the name on a portrait screen, where they don't fit side by side. Overlay artwork usually needs one image per orientation: `"overlay": "frame.png", "portrait": { "overlay": "frame-portrait.png" }`.
 
 File names and `url(...)` values are relative to the theme's folder, so `"overlay": "frame.png"` means `public/themes/<your-theme>/frame.png`.
 
 ### Adding your logo
+
+The four campus design themes (`ue-frame`, `ue-fade`, `harlaxton-fade`, `harlaxton-frame`) are rebuilt from the team's design files rather than stretched images, so they fit any screen shape (16:9, 4:3 iPad, portrait TV). Their logo and wordmark cut-outs live in `public/themes/_assets/`. The wordmarks are black, as in the designs; add `"filter": "invert(1)"` to a wordmark badge to make it white over dark video.
 
 The `harlaxton` and `evansville` themes show the campus name as a text badge until a logo file is added. To switch to the real logo, put the file in the theme's folder, for example `public/themes/evansville/logo.png`, and set `"file": "logo.png"` in the `logo` section. Use a PNG with a transparent background, or an SVG, at least 400 px tall. A white or light version usually reads best over video; keep the `plate` if the logo has dark parts.
 
@@ -106,6 +113,10 @@ Use an overlay when the border should look like real artwork, such as carved woo
 | id | Look |
 |---|---|
 | (none) | Full screen, no border |
+| `ue-frame` | **Evansville custom 1.** Solid UE purple frame, UE logo inside the bottom-left corner, "University of Evansville" in the bottom border |
+| `ue-fade` | **Evansville custom 2.** UE purple fading in from the top and bottom edges, UE logo and wordmark along the bottom |
+| `harlaxton-frame` | **Harlaxton custom 1.** Solid Harlaxton maroon frame, crest inside the bottom-left corner |
+| `harlaxton-fade` | **Harlaxton custom 2.** Harlaxton maroon fading in from the top and bottom edges, crest and wordmark along the bottom |
 | `harlaxton` | Honey-stone arch with block lines, Harlaxton College badge |
 | `mirror` | Gilded oval mirror; full-height in portrait, hanging on a dark wall in landscape |
 | `evansville` | UE purple frame with an orange inner line, University of Evansville badge |

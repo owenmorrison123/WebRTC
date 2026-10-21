@@ -86,7 +86,7 @@ For a life-size portal, mount the camera at eye level, centered just above (or b
 
 ### Themes
 
-Each kiosk can pick a border for its portal: rounded, arch, porthole, neon, picture frame, or full screen. Choose one in **Settings** or press **T**. To make your own, see **[THEMES.md](THEMES.md)**.
+Each kiosk can pick a border for its portal: the four custom campus designs (Evansville custom 1 and 2, Harlaxton custom 1 and 2), rounded, arch, porthole, neon, picture frame, or full screen. Every theme works in both landscape and portrait. Choose one in **Settings** or press **T**. To make your own, see **[THEMES.md](THEMES.md)**.
 
 ### Changing camera, mic and quality during a call
 

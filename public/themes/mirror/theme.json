@@ -1,6 +1,6 @@
 {
   "name": "Oval mirror",
-  "order": 3,
+  "order": 7,
   "shape": "oval",
   "inset": 4,
   "border": {

@@ -20,8 +20,12 @@ const THEME_DEFAULTS = {
   shape: 'rect', inset: 0, radius: 0, aspect: null, archRise: 0.4,
   border: { width: 0, color: 'transparent', gradient: null, spin: 0, innerWidth: 0, innerColor: null },
   glow: null, background: '#000', waiting: null,
-  overlay: null, overlayFit: 'stretch', accent: null, selfView: {}, logo: null,
+  overlay: null, overlayFit: 'stretch', accent: null, selfView: {}, logo: null, badges: null, shade: null,
 };
+// Theme lengths are numbers in px, or "N%" strings meaning % of the shorter screen side.
+const themeLen = (v, unit) => (typeof v === 'string' && v.trim().endsWith('%') ? parseFloat(v) * unit : Number(v) || 0);
+// All badges a theme draws: the "badges" list, plus the older single "logo" field.
+const themeBadges = (t) => [...(t.logo && (t.logo.file || t.logo.text) ? [t.logo] : []), ...(Array.isArray(t.badges) ? t.badges : [])].filter((b) => b && (b.file || b.text));
 async function loadThemes() {
   try { return await (await fetch('/themes', { cache: 'no-store' })).json(); } catch { return []; }
 }
@@ -46,6 +50,7 @@ function layoutCanvas() {
   if (view.orient === 'portrait' && W > H) W = Math.round(H * 9 / 16);
   else if (view.orient === 'landscape' && H > W) H = Math.round(W * 9 / 16);
   canvas = { W, H };
+  el.style.setProperty('--u', `${Math.min(W, H) / 100}px`); // 1% of the shorter side, for theme CSS
   Object.assign(el.style, { inset: 'auto', left: `${(vw - W) / 2}px`, top: `${(vh - H) / 2}px`, width: `${W}px`, height: `${H}px`, transform: view.rotate ? `rotate(${view.rotate}deg)` : '' });
 }
 
@@ -92,14 +97,18 @@ function renderTheme() {
     art.style.display = 'block';
   } else { art.removeAttribute('src'); art.style.display = 'none'; }
 
-  // Corner logo: an image file, or a text badge until the real logo file is added.
-  const logo = $('logo'); logo.innerHTML = '';
-  const lg = t.logo && (t.logo.file || t.logo.text) ? t.logo : null;
-  if (lg) {
-    if (lg.file) { const img = document.createElement('img'); img.src = themeUrl(base, lg.file); img.alt = lg.text || ''; logo.appendChild(img); }
-    else { const sp = document.createElement('span'); sp.textContent = lg.text; sp.style.color = lg.color || '#fff'; logo.appendChild(sp); }
-    Object.assign(logo.style, { display: 'flex', background: lg.plate || 'transparent', opacity: lg.opacity ?? 1 });
-  } else logo.style.display = 'none';
+  // Shade: a CSS background painted over the video inside the portal (e.g. color fades at the edges).
+  $('shade').style.background = t.shade ? themeCss(base, t.shade) : '';
+
+  // Badges (logos, wordmarks): image files, or text badges until the real logo file is added.
+  const holder = $('logo'); holder.innerHTML = '';
+  for (const lg of themeBadges(t)) {
+    const el = document.createElement('div'); el.className = 'badge';
+    if (lg.file) { const img = document.createElement('img'); img.src = themeUrl(base, lg.file); img.alt = lg.text || ''; el.appendChild(img); }
+    else { const sp = document.createElement('span'); sp.textContent = lg.text; sp.style.color = lg.color || '#fff'; if (lg.font) sp.style.fontFamily = lg.font; el.appendChild(sp); }
+    Object.assign(el.style, { background: lg.plate || 'transparent', opacity: lg.opacity ?? 1, filter: lg.filter || '' });
+    holder.appendChild(el);
+  }
 
   const sv = t.selfView;
   local.style.borderColor = sv.border || '';
@@ -117,7 +126,7 @@ function layoutFrame() {
   const aspect = t.shape === 'circle' ? 1 : parseAspect(t.aspect);
   let w = W - 2 * m, h = H - 2 * m;
   if (aspect) { w = Math.min(w, h * aspect); h = w / aspect; }
-  const bw = Math.max(0, Number(t.border.width) || 0), R = Math.max(0, Number(t.radius) || 0);
+  const bw = Math.max(0, themeLen(t.border.width, Math.min(W, H) / 100)), R = Math.max(0, Number(t.radius) || 0);
   let outer = '0', inner = '0';
   if (t.shape === 'rounded') { outer = `${R}px`; inner = `${Math.max(R - bw, 0)}px`; }
   else if (t.shape === 'circle' || t.shape === 'oval') { outer = inner = '50%'; }
@@ -134,21 +143,40 @@ function layoutFrame() {
   stageAspect = Math.max(w - 2 * bw, 1) / Math.max(h - 2 * bw, 1);
   onStageShape?.();
 
-  // Corner logo: sized as a % of the shorter screen side; anchored inside the portal ("frame", default)
-  // or to the screen edge ("screen", better for circles).
-  const lg = t.logo, logo = $('logo');
-  if (lg && (lg.file || lg.text) && logo) {
-    const unit = Math.min(W, H) / 100, size = (Number(lg.size) || 6) * unit, gap = (lg.margin ?? 2) * unit;
-    const pad = lg.plate ? size * 0.22 : 0;
-    const box = lg.anchor === 'screen' ? { l: 0, t: 0, r: W, b: H } : { l: (W - w) / 2 + bw, t: (H - h) / 2 + bw, r: (W + w) / 2 - bw, b: (H + h) / 2 - bw };
+  // Badges: sized as a % of the shorter screen side. anchor "frame" (default) = inside the portal's edge,
+  // "screen" = the screen edge, "border" = centered in the border band on that side.
+  const unit = Math.min(W, H) / 100, els = $('logo')?.children || [];
+  const fx = (W - w) / 2, fy = (H - h) / 2;
+  themeBadges(t).forEach((lg, i) => {
+    const el = els[i]; if (!el) return;
+    const size = (Number(lg.size) || 6) * unit, pad = lg.plate ? size * 0.22 : 0, bh = size + 2 * pad;
+    const gx = (lg.marginX ?? lg.margin ?? 2) * unit, gy = (lg.marginY ?? lg.margin ?? 2) * unit;
     const pos = lg.position || 'bottom-left';
-    Object.assign(logo.style, {
-      height: `${size + 2 * pad}px`, padding: `${pad}px ${pad * 1.4}px`, borderRadius: `${Math.round(size * 0.25)}px`,
-      left: pos.includes('left') ? `${box.l + gap}px` : 'auto', right: pos.includes('right') ? `${W - box.r + gap}px` : 'auto',
-      top: pos.includes('top') ? `${box.t + gap}px` : 'auto', bottom: pos.includes('bottom') ? `${H - box.b + gap}px` : 'auto',
+    const [vy, hx] = pos === 'center' ? ['center', 'center'] : pos.includes('-') ? pos.split('-') : ['center', pos];
+    let box = lg.anchor === 'screen' ? { l: 0, t: 0, r: W, b: H } : { l: fx + bw, t: fy + bw, r: fx + w - bw, b: fy + h - bw };
+    let left = null, right = null, top = null, bottom = null, tx = '', ty = '';
+    if (lg.anchor === 'border') {
+      // Center the badge in the border band between the portal's outer and inner edge on that side.
+      box = { l: fx, t: fy, r: fx + w, b: fy + h };
+      const mid = (bw - bh) / 2;
+      if (vy === 'bottom') bottom = H - box.b + mid; else if (vy === 'top') top = box.t + mid;
+      if (vy === 'center' && hx === 'left') left = box.l + (bw - el.offsetWidth) / 2;
+      if (vy === 'center' && hx === 'right') right = W - box.r + (bw - el.offsetWidth) / 2;
+    }
+    if (left === null && right === null) {
+      if (hx === 'left') left = box.l + gx; else if (hx === 'right') right = W - box.r + gx; else { left = (box.l + box.r) / 2; tx = '-50%'; }
+    }
+    if (top === null && bottom === null) {
+      if (vy === 'top') top = box.t + gy; else if (vy === 'bottom') bottom = H - box.b + gy; else { top = (box.t + box.b) / 2; ty = '-50%'; }
+    }
+    const px = (v) => (v === null ? 'auto' : `${v}px`);
+    Object.assign(el.style, {
+      height: `${bh}px`, padding: `${pad}px ${pad * 1.4}px`, borderRadius: `${Math.round(size * 0.25)}px`,
+      left: px(left), right: px(right), top: px(top), bottom: px(bottom),
+      maxWidth: `${Math.max(box.r - box.l - 2 * gx, 40)}px`, transform: tx || ty ? `translate(${tx || 0}, ${ty || 0})` : '',
     });
-    const sp = logo.querySelector('span'); if (sp) sp.style.fontSize = `${size * 0.62}px`;
-  }
+    const sp = el.querySelector('span'); if (sp) sp.style.fontSize = `${size * 0.62}px`;
+  });
 }
 let stageAspect = 16 / 9, onStageShape = null; // the portal calls onStageShape to tell the other side
 window.addEventListener('resize', () => renderTheme());

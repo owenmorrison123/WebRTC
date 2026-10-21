@@ -1,0 +1,33 @@
+{
+  "name": "Evansville custom 1 (purple frame)",
+  "order": 1,
+  "shape": "rect",
+  "inset": 0,
+  "border": {
+    "width": "5.8%",
+    "color": "#4D2784"
+  },
+  "background": "#4D2784",
+  "waiting": "transparent",
+  "accent": "#f47b20",
+  "badges": [
+    {
+      "file": "/themes/_assets/ue-logo.png",
+      "text": "University of Evansville",
+      "position": "bottom-left",
+      "size": 16.2,
+      "margin": 0.8
+    },
+    {
+      "file": "/themes/_assets/ue-wordmark.png",
+      "text": "University of Evansville",
+      "position": "bottom-center",
+      "anchor": "border",
+      "size": 5.2
+    }
+  ],
+  "selfView": {
+    "radius": 10,
+    "border": "#f47b20"
+  }
+}

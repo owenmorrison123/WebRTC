@@ -29,8 +29,10 @@
   #remote.live { animation:portalopen .7s ease-out; }
   body.fit-contain #remote { object-fit:contain; }
   #art { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; display:none; }
-  #logo { position:absolute; display:none; align-items:center; pointer-events:none; box-sizing:border-box; }
-  #logo img { display:block; height:100%; width:auto; max-width:40cqw; object-fit:contain; }
+  #shade { position:absolute; inset:0; pointer-events:none; border-radius:inherit; }
+  #logo { position:absolute; inset:0; pointer-events:none; }
+  #logo .badge { position:absolute; display:flex; align-items:center; justify-content:center; box-sizing:border-box; }
+  #logo img { display:block; height:100%; width:auto; max-width:100%; object-fit:contain; }
   #logo span { font-weight:700; letter-spacing:.04em; white-space:nowrap; line-height:1; }
   #local { position:absolute; right:20px; bottom:20px; width:min(22cqw,320px); aspect-ratio:16/9; object-fit:cover; border-radius:10px;
            transform:scaleX(-1); box-shadow:0 4px 24px rgba(0,0,0,.6); border:2px solid rgba(255,255,255,.15); background:#111; transition:opacity .3s; }
@@ -148,7 +150,7 @@
 
 <!-- Portal -->
 <section id="portal">
-  <div id="frame"><div id="stage"><video id="remote" autoplay playsinline></video></div></div>
+  <div id="frame"><div id="stage"><video id="remote" autoplay playsinline></video><div id="shade"></div></div></div>
   <img id="art" alt="">
   <div id="logo"></div>
   <video id="local" autoplay muted playsinline></video>

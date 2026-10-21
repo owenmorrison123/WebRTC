@@ -1,0 +1,51 @@
+{
+  "name": "Evansville custom 2 (purple fade)",
+  "order": 2,
+  "shape": "rect",
+  "inset": 0,
+  "shade": "linear-gradient(to bottom, rgba(78,40,132,1) calc(var(--u) * 0), rgba(78,40,132,0.684) calc(var(--u) * 4.2), rgba(78,40,132,0.42) calc(var(--u) * 8.4), rgba(78,40,132,0.21) calc(var(--u) * 12.6), rgba(78,40,132,0.065) calc(var(--u) * 16.8), rgba(78,40,132,0) calc(var(--u) * 21)), linear-gradient(to top, rgba(78,40,132,1) calc(var(--u) * 0), rgba(78,40,132,0.684) calc(var(--u) * 4.2), rgba(78,40,132,0.42) calc(var(--u) * 8.4), rgba(78,40,132,0.21) calc(var(--u) * 12.6), rgba(78,40,132,0.065) calc(var(--u) * 16.8), rgba(78,40,132,0) calc(var(--u) * 21))",
+  "waiting": "transparent",
+  "accent": "#f47b20",
+  "badges": [
+    {
+      "file": "/themes/_assets/ue-logo.png",
+      "text": "University of Evansville",
+      "position": "bottom-left",
+      "size": 16.6,
+      "marginX": 10.1,
+      "marginY": 9
+    },
+    {
+      "file": "/themes/_assets/ue-wordmark.png",
+      "text": "University of Evansville",
+      "position": "bottom-center",
+      "size": 6.6,
+      "marginY": 5.6,
+      "filter": "drop-shadow(0 0 calc(var(--u) * 0.6) rgba(255,255,255,0.6))"
+    }
+  ],
+  "portrait": {
+    "shade": "linear-gradient(to bottom, rgba(78,40,132,1) calc(var(--u) * 0), rgba(78,40,132,0.684) calc(var(--u) * 6.8), rgba(78,40,132,0.42) calc(var(--u) * 13.6), rgba(78,40,132,0.21) calc(var(--u) * 20.4), rgba(78,40,132,0.065) calc(var(--u) * 27.2), rgba(78,40,132,0) calc(var(--u) * 34)), linear-gradient(to top, rgba(78,40,132,1) calc(var(--u) * 0), rgba(78,40,132,0.684) calc(var(--u) * 6.8), rgba(78,40,132,0.42) calc(var(--u) * 13.6), rgba(78,40,132,0.21) calc(var(--u) * 20.4), rgba(78,40,132,0.065) calc(var(--u) * 27.2), rgba(78,40,132,0) calc(var(--u) * 34))",
+    "badges": [
+      {
+        "file": "/themes/_assets/ue-logo.png",
+        "text": "University of Evansville",
+        "position": "bottom-center",
+        "size": 14.3,
+        "marginY": 14
+      },
+      {
+        "file": "/themes/_assets/ue-wordmark.png",
+        "text": "University of Evansville",
+        "position": "bottom-center",
+        "size": 5.8,
+        "marginY": 5.5,
+        "filter": "drop-shadow(0 0 calc(var(--u) * 0.6) rgba(255,255,255,0.6))"
+      }
+    ]
+  },
+  "selfView": {
+    "radius": 10,
+    "border": "#f47b20"
+  }
+}
