@@ -736,7 +736,9 @@ async function portal() {
       try { makingOffer = true; await myPc.setLocalDescription(); signal({ description: myPc.localDescription }); }
       catch (e) { console.error(e); } finally { makingOffer = false; }
     };
-    pc.onicecandidate = ({ candidate }) => { if (candidate) signal({ candidate }); };
+    pc.onicecandidate = ({ candidate }) => { if (candidate) { noteCand(diag.local, candidate.candidate); signal({ candidate }); } };
+    pc.onicecandidateerror = (e) => { if (myPc === pc) diag.stunErrors++; };
+    resetDiag();
 
     pc.ontrack = ({ track, streams, receiver }) => {
       tuneReceiver(receiver);
@@ -785,6 +787,32 @@ async function portal() {
       else armWatchdog();
     }, 20000);
   }
+  // ---------- Connection diagnosis (shown if "Connecting…" takes too long) ----------
+  // Counts which kinds of network addresses each side found, then explains in plain words what's
+  // probably blocking the connection.
+  const diag = { local: {}, remote: {}, stunErrors: 0, timer: null };
+  function noteCand(bag, c) {
+    const m = /typ (host|srflx|prflx|relay)/.exec(c || ''); if (!m) return;
+    const k = m[1] === 'host' && /\.local /.test(c) ? 'mdns' : m[1];
+    bag[k] = (bag[k] || 0) + 1;
+  }
+  function resetDiag() {
+    diag.local = {}; diag.remote = {}; diag.stunErrors = 0; clearTimeout(diag.timer);
+    const myPc = pc;
+    diag.timer = setTimeout(() => { if (pc === myPc && pc.connectionState !== 'connected') explainStuck(); }, 15000);
+  }
+  function explainStuck() {
+    const L = diag.local, R = diag.remote, has = (o) => Object.keys(o).length > 0;
+    const who = peerLabel || 'the other screen';
+    let why;
+    if (!has(L)) why = 'This computer isn’t finding any network connections for video. On a Mac: System Settings → Privacy & Security → Local Network → turn on Google Chrome, then reload. Also check that the Mac’s firewall isn’t set to block all incoming connections.';
+    else if (!has(R)) why = `${who} hasn’t sent its network details yet. Check that it’s online and, if it’s a Mac, that Chrome is allowed under Privacy & Security → Local Network.`;
+    else if (!L.srflx && !L.relay) why = 'This network seems to block the internet check that video calls need (UDP to stun.l.google.com:19302). Try a wired connection or a different network, or ask IT to allow outbound UDP.';
+    else why = `Both screens found each other but the network is blocking a direct video link. This is common on campus Wi-Fi that keeps devices apart (“client isolation”). Try plugging one or both Macs into Ethernet, or test with one on a phone hotspot.`;
+    status('Still connecting…', why);
+    console.warn('connect diagnosis', JSON.stringify({ local: L, remote: R, stunErrors: diag.stunErrors }));
+  }
+
   async function rebuild() { try { await fetchIce(); } catch {} closePc(true); createPc(); }
 
   function closePc(keepUi) {
@@ -813,6 +841,7 @@ async function portal() {
       settingRemoteAnswer = false;
       if (description.type === 'offer') { await pc.setLocalDescription(); signal({ description: pc.localDescription }); }
     } else if (candidate) {
+      noteCand(diag.remote, candidate.candidate);
       try { await pc.addIceCandidate(candidate); } catch (e) { if (!ignoreOffer) console.warn('addIceCandidate', e); }
     }
   }
