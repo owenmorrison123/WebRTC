@@ -568,12 +568,21 @@ async function portal() {
   }
   async function getMedia() {
     for (;;) {
+      // If the browser is still waiting after a few seconds, it's almost always a permission prompt
+      // nobody has clicked yet (easy to miss, especially in Safari or full screen).
+      const hint = setTimeout(() => status('Allow the camera and microphone',
+        /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+          ? 'Safari is asking for permission at the top of the screen: click Allow. To stop it asking every time: Safari menu → Settings for This Website → Camera and Microphone → Allow.'
+          : 'Your browser is asking for permission near the address bar: click Allow (and “Remember this decision” if offered).'), 4000);
       try {
         const s = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(false), audio: audioConstraints(false) });
+        clearTimeout(hint);
         s.getTracks().forEach(prepTrack);
         return s;
       } catch (e) {
-        status('Camera or microphone unavailable', `${e.name}: ${e.message} — retrying…`);
+        clearTimeout(hint);
+        status(e.name === 'NotAllowedError' ? 'Camera or microphone blocked' : 'Camera or microphone unavailable',
+          e.name === 'NotAllowedError' ? 'This browser was told not to use the camera or mic. Allow them in the browser’s settings for this site (and on a Mac: System Settings → Privacy & Security → Camera / Microphone), then reload.' : `${e.name}: ${e.message} — retrying…`);
         await sleep(4000);
       }
     }
@@ -663,7 +672,11 @@ async function portal() {
   }
 
   status('Starting camera…');
+  // Let the toolbar appear on mouse movement even while the camera is still starting.
+  const earlyUi = () => { document.body.classList.add('show-ui'); clearTimeout(earlyUi.t); earlyUi.t = setTimeout(() => document.body.classList.remove('show-ui'), 3000); };
+  ['mousemove', 'touchstart', 'keydown'].forEach((ev) => document.addEventListener(ev, earlyUi, { passive: true }));
   localStream = await getMedia();
+  ['mousemove', 'touchstart', 'keydown'].forEach((ev) => document.removeEventListener(ev, earlyUi));
   localVideo.srcObject = localStream;
   if (cfg.spk && remoteVideo.setSinkId) remoteVideo.setSinkId(cfg.spk).catch((e) => console.warn('setSinkId', e));
 
