@@ -206,6 +206,15 @@ function layoutFrame() {
 }
 let stageAspect = 16 / 9, onStageShape = null; // the portal calls onStageShape to tell the other side
 window.addEventListener('resize', () => renderTheme());
+// Safari doesn't always report a resize when its toolbar hides or full screen changes, so also check
+// every couple of seconds and re-fit the portal if the window size changed.
+{
+  let last = '';
+  const check = () => { const k = `${window.innerWidth}x${window.innerHeight}`; if (k !== last) { last = k; if ($('portal')?.style.display === 'block') renderTheme(); } };
+  window.visualViewport?.addEventListener('resize', check);
+  ['fullscreenchange', 'webkitfullscreenchange'].forEach((ev) => document.addEventListener(ev, () => setTimeout(check, 300)));
+  setInterval(check, 2000);
+}
 
 // Both campus clocks. Used on the setup page and in the portal.
 const CLOCKS = [['Evansville', 'America/Chicago'], ['Harlaxton', 'Europe/London']];
