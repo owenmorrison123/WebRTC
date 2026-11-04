@@ -249,7 +249,7 @@ A page reload only happens when the server is reachable (so the kiosk never ends
 The page can't restart the browser itself, so each kiosk computer should start the portal with the launcher:
 
 - **Windows:** `start-portal-windows.bat`
-- **Mac:** `start-portal-mac.command`
+- **Mac:** `start-portal-mac.command` (or `start-portal-mac-safari.command` on Macs without Chrome)
 
 It opens the portal full screen in its own Chrome window, allows the camera, mic and sound without prompts, and **reopens Chrome within a minute if it closes or crashes**. It also restarts Chrome once a day at 3:30 AM. On a Mac it keeps the computer and screen awake.
 
@@ -265,6 +265,16 @@ It opens the portal full screen in its own Chrome window, allows the camera, mic
 - **Updates at night:** Windows Update → Active hours set to cover the daytime, so restarts happen overnight. The launcher brings everything back afterwards.
 - **Wired Ethernet**, and if possible a small UPS (battery backup) so brief power flickers don't reboot the computer.
 - **iPads:** turn on Guided Access (Settings → Accessibility) so the portal can't be closed, and set Auto-Lock to Never. Keep it plugged in.
+
+**Using Safari on a Mac** (when Chrome can't be installed)
+
+Chrome needs macOS 12 Monterey or newer. On an older Mac, the portal also works in Safari:
+
+1. In Safari, open the portal and click **Allow** for the camera and microphone.
+2. **Safari → Settings → Websites**, and for the portal site set **Camera** → Allow, **Microphone** → Allow and **Auto-Play** → *Allow All Auto-Play*. Without these, Safari asks again after every reload and the sound waits for a click.
+3. Use **`kiosk/start-portal-mac-safari.command`** instead of the Chrome launcher (same setup steps), and in **System Settings → Privacy & Security → Accessibility** turn on **Terminal** so it can make Safari full screen.
+
+In Safari, the automatic lip-sync adjustment, choosing the speaker, and the caption accent setting aren't available (captions use Apple's dictation if Siri is turned on). Everything else works the same.
 
 **Checking on it from anywhere**
 

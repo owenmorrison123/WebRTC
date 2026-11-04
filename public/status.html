@@ -55,7 +55,7 @@ function kiosk(p) {
   } else if (p.online) { cls = 'warn'; state = 'Open, no recent report'; }
   const rows = r ? [
     ['Video in', r.fps != null ? `${Math.round(r.fps)} fps` : '–'], ['Round trip', r.rtt != null ? `${r.rtt} ms` : '–'], ['Path', esc(r.path || '–')],
-    ['Mic / camera', `${r.mic ? 'on' : '<b>off</b>'} / ${r.cam ? 'on' : '<b>off</b>'}`], ['Frame', esc(r.theme)],
+    ['Mic / camera', `${r.mic ? 'on' : '<b>off</b>'} / ${r.cam ? 'on' : '<b>off</b>'}`], ['Frame', esc(r.theme)], ['Browser', esc(r.browser || '–')],
     ['Page open for', dur(r.uptime)], ['Last report', `${dur(p.reportAge)} ago`], ['Version', esc(r.version || '–')],
   ] : [['Connected for', dur(Math.round((Date.now() - p.since) / 1000))]];
   return `<div class="kiosk"><div class="name"><span class="dot ${cls}"></span>${esc(p.label || 'Unnamed kiosk')}</div><div class="state">${state}</div>

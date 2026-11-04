@@ -2,6 +2,17 @@
 // Campus Portal client — always-on 1-to-1 WebRTC with low-latency tuning.
 
 const $ = (id) => document.getElementById(id);
+// Older Safari (macOS 11/12) lacks a few newer browser features; small stand-ins keep the portal working there.
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)));
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+const BROWSER = (() => {
+  const ua = navigator.userAgent; let m;
+  if ((m = /Edg\/(\d+)/.exec(ua))) return `Edge ${m[1]}`;
+  if ((m = /Chrome\/(\d+)/.exec(ua))) return `Chrome ${m[1]}`;
+  if ((m = /Version\/([\d.]+).*Safari/.exec(ua))) return `Safari ${m[1]}`;
+  if ((m = /Firefox\/(\d+)/.exec(ua))) return `Firefox ${m[1]}`;
+  return 'Other';
+})();
 const Q = new URLSearchParams(location.search);
 
 // Bitrate caps are for 30 fps; 60 fps gets 1.6× (see autoKbps). The encoder still adapts downwards
@@ -52,6 +63,7 @@ function layoutCanvas() {
   else if (view.orient === 'landscape' && H > W) H = Math.round(W * 9 / 16);
   canvas = { W, H };
   el.style.setProperty('--u', `${Math.min(W, H) / 100}px`); // 1% of the shorter side, for theme CSS
+  el.style.setProperty('--cw', `${W / 100}px`); el.style.setProperty('--ch', `${H / 100}px`); // 1% of portal width/height
   Object.assign(el.style, { inset: 'auto', left: `${(vw - W) / 2}px`, top: `${(vh - H) / 2}px`, width: `${W}px`, height: `${H}px`, transform: view.rotate ? `rotate(${view.rotate}deg)` : '' });
 }
 
@@ -128,7 +140,7 @@ function renderTheme() {
   local.style.borderColor = sv.border || '';
   local.style.borderRadius = sv.shape === 'circle' ? '50%' : sv.shape === 'rect' ? '0' : sv.radius != null ? `${sv.radius}px` : '';
   local.style.aspectRatio = sv.shape === 'circle' ? '1 / 1' : '';
-  local.style.width = sv.shape === 'circle' ? 'min(16cqw, 220px)' : '';
+  local.style.width = sv.shape === 'circle' ? `${Math.min(canvas.W * 0.16, 220)}px` : '';
   layoutFrame();
 }
 // Position and shape the frame for the current screen size (called on apply and on every resize).
@@ -224,7 +236,7 @@ async function setup() {
   const startMeter = () => {
     cancelAnimationFrame(meterRaf);
     const tr = stream?.getAudioTracks()[0]; if (!tr) return;
-    actx = actx || new AudioContext();
+    actx = actx || new AudioCtx();
     const an = actx.createAnalyser(); an.fftSize = 512;
     actx.createMediaStreamSource(new MediaStream([tr])).connect(an);
     const buf = new Uint8Array(an.fftSize); let heard = 0;
@@ -262,7 +274,7 @@ async function setup() {
 
   // Test sound through the chosen speaker.
   f('s-test').onclick = async () => {
-    actx = actx || new AudioContext(); await actx.resume();
+    actx = actx || new AudioCtx(); await actx.resume();
     const dest = actx.createMediaStreamDestination(), g = actx.createGain();
     g.connect(dest); g.gain.value = 0.0001;
     const el = new Audio(); el.srcObject = dest.stream;
@@ -478,7 +490,7 @@ async function portal() {
   $('f-close').onclick = toggleFrames;
   const cycleTheme = () => { const ids = ['', ...themes.map((t) => t.id)]; setTheme(ids[(ids.indexOf(cfg.theme) + 1) % ids.length]); };
 
-  const clientId = crypto.randomUUID();
+  const clientId = uuid();
   const remoteVideo = $('remote'), localVideo = $('local');
   let localStream = null, pc = null, ws = null, polite = false, peerLabel = '';
   let onRemoteState = null, onLinkChange = null, onRemoteWake = null, onCaptionSignal = null; // set up by the controls section below
@@ -746,7 +758,7 @@ async function portal() {
     }
 
     pc.onnegotiationneeded = async () => {
-      try { makingOffer = true; await myPc.setLocalDescription(); signal({ description: myPc.localDescription }); }
+      try { makingOffer = true; await setLocal(myPc); signal({ description: myPc.localDescription }); }
       catch (e) { console.error(e); } finally { makingOffer = false; }
     };
     pc.onicecandidate = ({ candidate }) => { if (candidate) { noteCand(diag.local, candidate.candidate); signal({ candidate }); } };
@@ -836,6 +848,11 @@ async function portal() {
     onLinkChange?.();
   }
 
+  // setLocalDescription() with no argument picks offer or answer itself; older Safari needs it spelled out.
+  async function setLocal(conn) {
+    try { await conn.setLocalDescription(); }
+    catch { await conn.setLocalDescription(conn.signalingState === 'have-remote-offer' ? await conn.createAnswer() : await conn.createOffer()); }
+  }
   async function onSignal(data) {
     if (data.state) return onRemoteState?.(data.state);
     if (data.wake) return onRemoteWake?.(data.wake);
@@ -850,9 +867,11 @@ async function portal() {
       ignoreOffer = !polite && collision;
       if (ignoreOffer) return;
       settingRemoteAnswer = description.type === 'answer';
+      // Older Safari can't roll back our own pending offer by itself when both sides offer at once.
+      if (description.type === 'offer' && pc.signalingState === 'have-local-offer') { try { await pc.setLocalDescription({ type: 'rollback' }); } catch {} }
       await pc.setRemoteDescription(description);
       settingRemoteAnswer = false;
-      if (description.type === 'offer') { await pc.setLocalDescription(); signal({ description: pc.localDescription }); }
+      if (description.type === 'offer') { await setLocal(pc); signal({ description: pc.localDescription }); }
     } else if (candidate) {
       noteCand(diag.remote, candidate.candidate);
       try { await pc.addIceCandidate(candidate); } catch (e) { if (!ignoreOffer) console.warn('addIceCandidate', e); }
@@ -1081,7 +1100,7 @@ async function portal() {
     const w = nextWake();
     $('sl-msg').textContent = wakeUntil > Date.now() ? '' : `Wakes up at ${timeIn(w, 'America/Chicago')} in Evansville · ${timeIn(w, 'Europe/London')} at Harlaxton`;
     // drift a little each minute so nothing burns into the screen
-    $('sl-inner').style.transform = `translate(${Math.round(Math.random() * 8 - 4)}cqw, ${Math.round(Math.random() * 8 - 4)}cqh)`;
+    $('sl-inner').style.transform = `translate(${Math.round((Math.random() * 8 - 4) * canvas.W / 100)}px, ${Math.round((Math.random() * 8 - 4) * canvas.H / 100)}px)`;
   }
   function checkSleep() {
     const want = inSleep(new Date()) && Date.now() > wakeUntil;
@@ -1124,7 +1143,12 @@ async function portal() {
     history.replaceState(null, '', u);
   };
   applySelf();
-  const toggleFs = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {});
+  const toggleFs = () => {
+    const d = document, el = d.documentElement;
+    const on = d.fullscreenElement || d.webkitFullscreenElement;
+    const p = on ? (d.exitFullscreen || d.webkitExitFullscreen).call(d) : (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+    p?.catch?.(() => {});
+  };
   // ---------- Settings panel ----------
   async function fillDevices() {
     let devs = [];
@@ -1313,7 +1337,7 @@ async function portal() {
     // Report to the status page.
     if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'report', data: {
       connected: healthy(), sleeping, peer: peerLabel || null, mic: micOn, cam: camOn, fps: health.fps, rtt: health.rtt != null ? Math.round(health.rtt) : null,
-      path: health.path, theme: cfg.theme || 'full screen', uptime: Math.round((now - bootAt) / 1000), version: APP_VERSION,
+      path: health.path, theme: cfg.theme || 'full screen', browser: BROWSER, uptime: Math.round((now - bootAt) / 1000), version: APP_VERSION,
     } }));
   }, 20000);
   // Daily fresh start: reload once a day at 3 AM Evansville time (while asleep, or anyway if sleep is off).
