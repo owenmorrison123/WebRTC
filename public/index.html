@@ -14,25 +14,29 @@
   body.hide-cursor, body.hide-cursor * { cursor:none !important; }
 
   /* ---------- portal ---------- */
-  #portal { position:fixed; inset:0; display:none; container-type:size; overflow:hidden; transform-origin:50% 50%; }
+  #portal { position:fixed; top:0; right:0; bottom:0; left:0; display:none; container-type:size; overflow:hidden; transform-origin:50% 50%; }
   /* Theme frame: #frame is the border (its background shows through its padding), #stage clips the video.
      Geometry (position, size, corner shape) is set by applyTheme() in app.js. */
   @property --spin { syntax:'<angle>'; inherits:true; initial-value:0deg; }
   @keyframes t-spin { to { --spin:360deg; } }
   @keyframes glowpulse { 0%,100% { opacity:.55; } 50% { opacity:1; } }
   @keyframes portalopen { from { opacity:0; transform:scale(.96); } to { opacity:1; transform:none; } }
-  #frame { position:absolute; inset:0; box-sizing:border-box; isolation:isolate; transition:inset .4s, border-radius .4s; }
+  #frame { position:absolute; top:0; right:0; bottom:0; left:0; box-sizing:border-box; isolation:isolate; transition:inset .4s, border-radius .4s; }
   #frame.spin { animation:t-spin var(--t-spin, 8s) linear infinite; }
-  #frame::after { content:''; position:absolute; inset:0; border-radius:inherit; box-shadow:var(--t-glow, none); pointer-events:none; }
+  #frame::after { content:''; position:absolute; top:0; right:0; bottom:0; left:0; border-radius:inherit; box-shadow:var(--t-glow, none); pointer-events:none; }
   #frame.pulse::after { animation:glowpulse 3s ease-in-out infinite; }
+  /* Safari: keep the video layer clipped to the frame shape and underneath the controls. */
+  #frame { z-index:0; }
+  #stage { -webkit-mask-image:-webkit-radial-gradient(white, black); }
+  #art, #logo, #local, #label, #clocks, #overlay { z-index:1; }
   #stage { position:relative; width:100%; height:100%; overflow:hidden; background:#000; isolation:isolate; }
-  #stage::after { content:''; position:absolute; inset:0; border-radius:inherit; box-shadow:inset 0 0 0 var(--t-inner-w, 0px) var(--t-inner-c, transparent); pointer-events:none; z-index:1; }
-  #remote { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#000; }
+  #stage::after { content:''; position:absolute; top:0; right:0; bottom:0; left:0; border-radius:inherit; box-shadow:inset 0 0 0 var(--t-inner-w, 0px) var(--t-inner-c, transparent); pointer-events:none; z-index:1; }
+  #remote { position:absolute; top:0; right:0; bottom:0; left:0; width:100%; height:100%; object-fit:cover; background:#000; }
   #remote.live { animation:portalopen .7s ease-out; }
   body.fit-contain #remote { object-fit:contain; }
-  #art { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; display:none; }
-  #shade { position:absolute; inset:0; pointer-events:none; border-radius:inherit; }
-  #logo { position:absolute; inset:0; pointer-events:none; }
+  #art { position:absolute; top:0; right:0; bottom:0; left:0; width:100%; height:100%; pointer-events:none; display:none; }
+  #shade { position:absolute; top:0; right:0; bottom:0; left:0; pointer-events:none; border-radius:inherit; }
+  #logo { position:absolute; top:0; right:0; bottom:0; left:0; pointer-events:none; }
   #logo .badge { position:absolute; display:flex; align-items:center; justify-content:center; box-sizing:border-box; }
   #logo img { display:block; height:100%; width:auto; max-width:100%; object-fit:contain; }
   #logo span { font-weight:700; letter-spacing:.04em; white-space:nowrap; line-height:1; }
@@ -59,18 +63,18 @@
   #toolbar button.on { background:var(--accent); color:#04121c; }
   #toolbar { flex-wrap:wrap; justify-content:center; width:max-content; max-width:calc(calc(var(--cw) * 100) - 24px); }
   #toolbar button { white-space:nowrap; }
-  #cam-off { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(5,7,10,.82); pointer-events:none; border-radius:inherit; }
+  #cam-off { position:absolute; top:0; right:0; bottom:0; left:0; display:none; align-items:center; justify-content:center; background:rgba(5,7,10,.82); pointer-events:none; border-radius:inherit; }
   #cam-off.on { display:flex; }
   #cam-off span { padding:10px 18px; border-radius:12px; background:var(--panel); font-size:clamp(16px, calc(var(--cw) * 2), 26px); font-weight:500; text-align:center; }
   #dot { width:10px; height:10px; border-radius:50%; background:var(--warn); box-shadow:0 0 10px currentColor; }
   #dot.ok { background:var(--ok); } #dot.bad { background:var(--bad); }
-  #overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; background:var(--t-wait, radial-gradient(ellipse at center,#0b1520 0%,#05070a 70%)); text-align:center; padding:24px; transition:opacity .6s; }
+  #overlay { position:absolute; top:0; right:0; bottom:0; left:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; background:var(--t-wait, radial-gradient(ellipse at center,#0b1520 0%,#05070a 70%)); text-align:center; padding:24px; transition:opacity .6s; }
   #overlay.hidden { opacity:0; pointer-events:none; }
   #overlay h1 { margin:0; font-size:clamp(28px,calc(var(--cw) * 4),56px); font-weight:300; }
   #overlay p { margin:0; color:var(--muted); font-size:clamp(15px,calc(var(--cw) * 1.6),22px); }
   .ring { width:90px; height:90px; border-radius:50%; border:3px solid rgba(56,189,248,.2); border-top-color:var(--accent); animation:spin 1.4s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
-  #tap { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); font-size:24px; z-index:5; cursor:pointer; }
+  #tap { position:absolute; top:0; right:0; bottom:0; left:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); font-size:24px; z-index:5; cursor:pointer; }
   #toolbar { position:absolute; left:50%; bottom:20px; transform:translateX(-50%); display:flex; gap:8px; padding:8px; border-radius:14px; background:var(--panel); opacity:0; transition:opacity .3s; z-index:4; }
   body.show-ui #toolbar { opacity:1; }
   #toolbar button { background:rgba(255,255,255,.08); color:var(--fg); border:0; border-radius:10px; padding:10px 14px; font:inherit; cursor:pointer; }
@@ -88,7 +92,7 @@
   #settings label.chk { display:flex; align-items:center; gap:8px; color:var(--fg); font-size:14px; }
   #settings input[type=time] { display:block; width:100%; margin-top:4px; padding:7px 10px; border-radius:8px; border:1px solid #263241; background:#070b10; color:var(--fg); font:14px system-ui,sans-serif; color-scheme:dark; }
   /* sleep mode */
-  #sleep { position:absolute; inset:0; z-index:5; display:none; align-items:center; justify-content:center; background:#000; text-align:center; }
+  #sleep { position:absolute; top:0; right:0; bottom:0; left:0; z-index:5; display:none; align-items:center; justify-content:center; background:#000; text-align:center; }
   body.sleeping #sleep { display:flex; }
   body.sleeping #notices, body.sleeping #clocks, body.sleeping #label, body.sleeping #local, body.sleeping #logo { display:none; }
   #sl-inner { opacity:.6; transition:transform 2s ease; }
@@ -122,7 +126,7 @@
   #frames .sw { flex:none; width:34px; height:22px; border-radius:5px; box-sizing:border-box; }
   #frames #f-close { margin-top:14px; width:100%; padding:10px; border:0; border-radius:10px; background:var(--accent); color:#04121c; font:inherit; font-weight:600; cursor:pointer; }
   /* themed waiting screen */
-  #wait-bg { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .6s; border-radius:inherit; }
+  #wait-bg { position:absolute; top:0; right:0; bottom:0; left:0; pointer-events:none; opacity:0; transition:opacity .6s; border-radius:inherit; }
   body.waiting #wait-bg { opacity:1; }
   .ov-mark { position:relative; display:flex; align-items:center; justify-content:center; }
   #ov-logo, #ov-word { display:none; }
