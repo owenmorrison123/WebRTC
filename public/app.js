@@ -602,12 +602,32 @@ async function portal() {
         return s;
       } catch (e) {
         clearTimeout(hint);
-        status(e.name === 'NotAllowedError' ? 'Camera or microphone blocked' : 'Camera or microphone unavailable',
-          e.name === 'NotAllowedError' ? 'This browser was told not to use the camera or mic. Allow them in the browser’s settings for this site (and on a Mac: System Settings → Privacy & Security → Camera / Microphone), then reload.' : `${e.name}: ${e.message} — retrying…`);
-        await sleep(4000);
+        console.warn('getUserMedia', e.name, e.message);
+        mediaProblem = e.name;
+        // Missing, busy or picky devices: try plain requests (camera + mic, mic only, camera only).
+        // If nothing works, join anyway in watch-only mode so this screen still sees and hears the other side.
+        for (const c of e.name === 'NotAllowedError' || e.name === 'SecurityError' ? [] : [{ video: true, audio: true }, { audio: true }, { video: true }]) {
+          try { const s = await navigator.mediaDevices.getUserMedia(c); s.getTracks().forEach(prepTrack); return s; } catch {}
+        }
+        return new MediaStream();
       }
     }
   }
+  let mediaProblem = null;
+  const hasCam = () => localStream?.getVideoTracks().length > 0, hasMic = () => localStream?.getAudioTracks().length > 0;
+  // Watch-only: keep checking for a camera/mic (plugged in later, or permission granted) and start over once there is one.
+  setInterval(async () => {
+    if (!localStream || (hasCam() && hasMic())) return;
+    try {
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      const camNow = devs.some((d) => d.kind === 'videoinput'), micNow = devs.some((d) => d.kind === 'audioinput');
+      if ((camNow && !hasCam()) || (micNow && !hasMic())) {
+        const t = await navigator.mediaDevices.getUserMedia({ video: camNow && !hasCam(), audio: micNow && !hasMic() });
+        t.getTracks().forEach((x) => x.stop());
+        location.reload();
+      }
+    } catch {}
+  }, 30000);
   let reacquiring = false;
   async function onTrackEnded() {
     // Device unplugged / driver reset: reacquire and hot-swap without renegotiating.
@@ -765,6 +785,9 @@ async function portal() {
       const tr = pc.getTransceivers().find((t) => t.sender === sender);
       if (track.kind === 'video') preferCodec(tr);
     }
+    // No camera or mic here: still ask to RECEIVE the other side's video and sound.
+    if (!hasMic()) pc.addTransceiver('audio', { direction: 'recvonly' });
+    if (!hasCam()) pc.addTransceiver('video', { direction: 'recvonly' });
 
     pc.onnegotiationneeded = async () => {
       try { makingOffer = true; await setLocal(myPc); signal({ description: myPc.localDescription }); }
@@ -992,10 +1015,19 @@ async function portal() {
     $('cam-off-text').textContent = rSleep ? `${who}’s portal is asleep` : `${who} turned their camera off`;
     $('cam-off').classList.toggle('on', !!rCamOff);
     $('n-my-mic').classList.toggle('on', !micOn);
-    $('n-my-cam').classList.toggle('on', !camOn);
+    $('n-my-cam').classList.toggle('on', !camOn && hasCam());
+    const noCam = !hasCam(), noMic = !hasMic();
+    $('n-nodev').classList.toggle('on', noCam || noMic);
+    localVideo.style.display = noCam ? 'none' : '';
+    if (noCam || noMic) {
+      const what = noCam && noMic ? 'camera or microphone' : noCam ? 'camera' : 'microphone';
+      $('n-nodev-text').textContent = mediaProblem === 'NotAllowedError'
+        ? `Camera/mic blocked by the browser: you can see and hear the other side, but they can’t ${noCam && noMic ? 'see or hear' : noCam ? 'see' : 'hear'} you. Allow them in the browser’s website settings, then reload.`
+        : `No ${what} found on this computer: you can see and hear the other side, but they can’t ${noCam && noMic ? 'see or hear' : noCam ? 'see' : 'hear'} you.`;
+    }
     $('n-my-cc').classList.toggle('on', !!cc.rec && !sleeping);
   }
-  function sendState() { signal({ state: { mic: micOn, cam: camOn, sleep: sleeping } }); }
+  function sendState() { signal({ state: { mic: micOn && hasMic(), cam: camOn && hasCam(), sleep: sleeping } }); }
   onRemoteState = (st) => { remoteState = st; renderNotices(); };
   onLinkChange = () => { if (!(pc && pc.connectionState === 'connected')) remoteState = null; else sendState(); renderNotices(); };
   const toggleMic = () => { micOn = !micOn; applyMuteState(); };
@@ -1081,6 +1113,7 @@ async function portal() {
   { const prev = onLinkChange; onLinkChange = () => { prev(); if (healthy()) signal({ ccWant: cc.iWant }); else { cc.peerWants = false; } syncRec(); }; }
   const toggleCaptions = () => setCaptions(!cc.iWant);
   setCaptions(cc.iWant, true);
+  renderNotices();
 
   // ---------- Sleep mode ----------
   // Both kiosks follow the same schedule in Evansville time, so they go to sleep and wake up together.
@@ -1320,7 +1353,7 @@ async function portal() {
     health.rtt = rtt; health.fps = inV?.framesPerSecond ?? null; health.path = path;
     const remoteIdle = sleeping || remoteState?.sleep || remoteState?.cam === false;
     if (inV && inV.framesDecoded !== health.inFrames) { health.inFrames = inV.framesDecoded; health.inAt = now; } else if (remoteIdle) health.inAt = now;
-    const localIdle = sleeping || !camOn;
+    const localIdle = sleeping || !camOn || !hasCam();
     if (outV && outV.framesEncoded !== health.outFrames) { health.outFrames = outV.framesEncoded; health.outAt = now; } else if (localIdle) health.outAt = now;
     if (now - health.inAt > 20000) { // the other campus's picture has been frozen for 20 s
       health.inAt = now; health.netFixes = [...recent(health.netFixes), now];
