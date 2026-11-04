@@ -43,7 +43,10 @@ async function loadThemes() {
 }
 // Relative url(...) values and file names in a theme are relative to the theme's own folder.
 const themeUrl = (base, u) => (/^(data:|https?:|\/)/.test(u) ? u : base + u);
-const themeCss = (base, v) => (typeof v === 'string' ? v.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (m, q, u) => `url("${themeUrl(base, u.trim())}")`) : v);
+// Older Safari can't use calc(var(--u) * N) inside gradients and filters, so theme values get those
+// worked out into plain pixels here (they're recomputed whenever the screen size changes).
+const resolveU = (v) => (typeof v === 'string' ? v.replace(/calc\(\s*var\(--u\)\s*\*\s*([\d.]+)\s*\)/g, (m, n) => `${(Number(n) * Math.min(canvas.W, canvas.H) / 100).toFixed(2)}px`) : v);
+const themeCss = (base, v) => (typeof v === 'string' ? resolveU(v).replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (m, q, u) => `url("${themeUrl(base, u.trim())}")`) : v);
 const parseAspect = (a) => { if (!a) return null; if (typeof a === 'number') return a; const [w, h] = String(a).split(/[:/x]/).map(Number); return w > 0 && h > 0 ? w / h : null; };
 
 /* ---------- Orientation ----------
@@ -105,7 +108,7 @@ function renderTheme() {
   if (ws?.logo) ovLogo.src = themeUrl(base, ws.logo); else ovLogo.removeAttribute('src');
   if (ws?.wordmark) ovWord.src = themeUrl(base, ws.wordmark); else ovWord.removeAttribute('src');
   ovLogo.style.visibility = ws?.logo ? '' : 'hidden'; ovWord.style.display = ws?.wordmark ? '' : 'none';
-  ovWord.style.filter = ws?.wordmarkFilter || '';
+  ovWord.style.filter = resolveU(ws?.wordmarkFilter || '');
   for (const [k, v] of [['--ring', ws?.ringSize], ['--logo', ws?.logoSize], ['--word', ws?.wordmarkSize], ['--wait-fg', ws?.color], ['--wait-muted', ws?.subColor], ['--ring-track', ws?.ringTrack]]) {
     if (v != null) ov.style.setProperty(k, String(v)); else ov.style.removeProperty(k);
   }
@@ -132,7 +135,7 @@ function renderTheme() {
     const el = document.createElement('div'); el.className = 'badge';
     if (lg.file) { const img = document.createElement('img'); img.src = themeUrl(base, lg.file); img.alt = lg.text || ''; el.appendChild(img); }
     else { const sp = document.createElement('span'); sp.textContent = lg.text; sp.style.color = lg.color || '#fff'; if (lg.font) sp.style.fontFamily = lg.font; el.appendChild(sp); }
-    Object.assign(el.style, { background: lg.plate || 'transparent', opacity: lg.opacity ?? 1, filter: lg.filter || '' });
+    Object.assign(el.style, { background: lg.plate || 'transparent', opacity: lg.opacity ?? 1, filter: resolveU(lg.filter || '') });
     holder.appendChild(el);
   }
 
