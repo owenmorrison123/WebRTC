@@ -276,6 +276,18 @@ Chrome needs macOS 12 Monterey or newer. On an older Mac, the portal also works 
 
 In Safari, the automatic lip-sync adjustment, choosing the speaker, and the caption accent setting aren't available (captions use Apple's dictation if Siri is turned on). Everything else works the same.
 
+**Fixing a screen from your phone (no keyboard or mouse)**
+
+Open **`/remote.html`** on the portal site on any phone (for example `https://campus-portal-5m57.onrender.com/remote.html`), enter the room key, and tap the screen you want. Bookmark it, or add it to your home screen. From there you can:
+
+- **Fix a problem:** *Reconnect call*, *Restart camera*, or *Reload portal* (try them in that order).
+- Turn the mic, camera, captions or self-view on and off.
+- Wake the portal for 30 minutes, or put it to sleep now.
+- Change the volume, the frame, the camera, mic or speaker, and the orientation or rotation.
+- Show a message on the screen, like "Back in 5 minutes!"
+
+It needs the room key, like the portal itself. The address is also shown in the portal's **Settings** panel.
+
 **Checking on it from anywhere**
 
 Open **`/status.html`** on the portal site (for example `https://campus-portal-5m57.onrender.com/status.html`) and enter the room key. It shows each kiosk as live, waiting, sleeping or offline, with frame rate, connection quality, how long the page has been running and when it last checked in.
@@ -297,6 +309,7 @@ server.js         signaling + static server + TURN credential minting
 public/index.html setup page + portal UI
 public/app.js     WebRTC client (perfect negotiation, auto-recovery, tuning, stats, themes)
 public/status.html status page for checking on both kiosks
+public/remote.html phone remote for fixing and adjusting a screen without a keyboard or mouse
 public/themes/    one folder per theme (see THEMES.md)
 kiosk/            launchers that keep the portal open on the kiosk computers
 THEMES.md         how to make a theme

@@ -17,7 +17,7 @@ const Q = new URLSearchParams(location.search);
 
 // Bitrate caps are for 30 fps; 60 fps gets 1.6× (see autoKbps). The encoder still adapts downwards
 // to what the network can carry; these are ceilings, not targets.
-const APP_VERSION = '2026-10-21';
+const APP_VERSION = '2026-11-11';
 const PRESETS = {
   540:  { w: 960,  h: 540,  kbps: 1500 },
   720:  { w: 1280, h: 720,  kbps: 3000 },
@@ -505,7 +505,7 @@ async function portal() {
   const clientId = uuid();
   const remoteVideo = $('remote'), localVideo = $('local');
   let localStream = null, pc = null, ws = null, polite = false, peerLabel = '';
-  let onRemoteState = null, onLinkChange = null, onRemoteWake = null, onCaptionSignal = null; // set up by the controls section below
+  let onRemoteState = null, onLinkChange = null, onRemoteWake = null, onCaptionSignal = null, onRemoteCmd = null, onWsOpen = null; // set up by the controls section below
   let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
   let gen = 0; // peer-connection generation; bumps on full rebuild
 
@@ -730,7 +730,7 @@ async function portal() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const p = new URLSearchParams({ room: cfg.room, id: clientId, label: cfg.label, key: cfg.key });
     ws = new WebSocket(`${proto}://${location.host}/ws?${p}`);
-    ws.onopen = () => { wsBackoff = 500; lastPong = Date.now(); };
+    ws.onopen = () => { wsBackoff = 500; lastPong = Date.now(); setTimeout(() => onWsOpen?.(), 1500); };
     ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.type === 'pong') { lastPong = Date.now(); return; } onWsMessage(m); };
     ws.onclose = (e) => {
       if (e.code === 4001) return wrongKey();
@@ -764,6 +764,8 @@ async function portal() {
       peerPresent = false; peerId = null; closePc(); waiting();
     } else if (msg.type === 'signal') {
       enqueue(() => onSignal(msg.data));
+    } else if (msg.type === 'cmd') {
+      onRemoteCmd?.(msg);
     }
   }
   const waiting = () => { status('Waiting for the other campus…', cfg.label ? `This is ${cfg.label} · room “${cfg.room}”` : `Room “${cfg.room}”`); setDot('', 'Waiting for other site'); };
@@ -961,7 +963,7 @@ async function portal() {
   }
   let toastTimer;
   function toast(msg) {
-    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    const t = $('toast'); t.classList.remove('big'); t.textContent = msg; t.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
   }
 
@@ -1130,6 +1132,7 @@ async function portal() {
   const fmtHM = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
   let sleepCfg = Q.get('sleep') === 'off' ? null : parseSleep(Q.get('sleep') || '19:00-05:00');
   let wakeUntil = 0; // a manual "wake up" lasts until this time
+  let forceSleep = false; // "sleep now" from the phone remote, until someone wakes it
   const tzFmt = new Intl.DateTimeFormat('en-US', { timeZone: SLEEP_TZ, hour: 'numeric', minute: 'numeric', hourCycle: 'h23' });
   const minutesIn = (d) => { const p = Object.fromEntries(tzFmt.formatToParts(d).map((x) => [x.type, x.value])); return (+p.hour % 24) * 60 + +p.minute; };
   const inSleep = (d) => {
@@ -1148,7 +1151,7 @@ async function portal() {
     $('sl-inner').style.transform = `translate(${Math.round((Math.random() * 8 - 4) * canvas.W / 100)}px, ${Math.round((Math.random() * 8 - 4) * canvas.H / 100)}px)`;
   }
   function checkSleep() {
-    const want = inSleep(new Date()) && Date.now() > wakeUntil;
+    const want = (inSleep(new Date()) || forceSleep) && Date.now() > wakeUntil;
     if (want !== sleeping) {
       sleeping = want;
       document.body.classList.toggle('sleeping', sleeping);
@@ -1159,6 +1162,7 @@ async function portal() {
     $('b-sleep').textContent = sleepCfg ? (sleeping ? 'Wake up' : 'Sleep: on') : 'Sleep: off';
   }
   const wakeFor = (ms, fromPeer) => {
+    forceSleep = false;
     wakeUntil = Math.max(wakeUntil, Date.now() + ms);
     if (!fromPeer) signal({ wake: wakeUntil });
     checkSleep();
@@ -1212,6 +1216,7 @@ async function portal() {
     [{ id: '', name: 'Full screen (no border)' }, ...themes].forEach((t) => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; th.appendChild(o); });
     th.value = cfg.theme;
     $('p-clocks').checked = !document.body.classList.contains('no-clocks');
+    $('p-remote-url').textContent = `${location.host}/remote.html`;
     $('p-cclang').value = cc.lang;
     $('p-sleep').checked = !!sleepCfg; $('p-sleep-from').value = fmtHM(sleepCfg?.from ?? 1140); $('p-sleep-to').value = fmtHM(sleepCfg?.to ?? 300);
     $('p-orient').value = view.orient; $('p-rotate').value = String(view.rotate);
@@ -1379,11 +1384,7 @@ async function portal() {
     // Stuck: the other campus is there (or the server is unreachable) but we haven't connected for 3 minutes.
     const fine = sleeping || healthy() || (!peerPresent && ws?.readyState === 1);
     if (fine) health.badSince = null; else if (!health.badSince) health.badSince = now; else if (now - health.badSince > 3 * 60e3) { health.badSince = now; reloadSoon('not connected for 3 minutes'); }
-    // Report to the status page.
-    if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'report', data: {
-      connected: healthy(), sleeping, peer: peerLabel || null, mic: micOn, cam: camOn, fps: health.fps, rtt: health.rtt != null ? Math.round(health.rtt) : null,
-      path: health.path, theme: cfg.theme || 'full screen', browser: BROWSER, uptime: Math.round((now - bootAt) / 1000), version: APP_VERSION,
-    } }));
+    sendReport();
   }, 20000);
   // Daily fresh start: reload once a day at 3 AM Evansville time (while asleep, or anyway if sleep is off).
   // Clears any slow memory build-up in the browser and picks up new versions of the portal.
@@ -1393,6 +1394,55 @@ async function portal() {
   }, 60000);
   // Keep the free server awake (it naps after 15 minutes with no web requests).
   setInterval(() => fetch('/health', { cache: 'no-store' }).catch(() => {}), 4 * 60e3);
+
+  // ---------- Reports (status page + phone remote) and remote commands ----------
+  let devCache = [];
+  async function sendReport() {
+    if (ws?.readyState !== 1) return;
+    try { devCache = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.deviceId && d.deviceId !== 'default').map((d, i) => ({ kind: d.kind, id: d.deviceId, label: d.label || `${d.kind} ${i + 1}` })); } catch {}
+    const vt = localStream?.getVideoTracks()[0], at = localStream?.getAudioTracks()[0];
+    ws.send(JSON.stringify({ type: 'report', data: {
+      connected: healthy(), sleeping, peer: peerLabel || null, mic: micOn && hasMic(), cam: camOn && hasCam(), hasMic: hasMic(), hasCam: hasCam(),
+      fps: health.fps, rtt: health.rtt != null ? Math.round(health.rtt) : null, path: health.path,
+      theme: cfg.theme || 'full screen', themeId: cfg.theme || '', browser: BROWSER, uptime: Math.round((Date.now() - bootAt) / 1000), version: APP_VERSION,
+      cc: cc.iWant, self: !document.body.classList.contains('no-self'), volume: Math.round(remoteVideo.volume * 100), forceSleep,
+      orient: view.orient, rotate: view.rotate, sleepSched: sleepCfg ? `${fmtHM(sleepCfg.from)}-${fmtHM(sleepCfg.to)}` : 'off',
+      camId: vt?.getSettings().deviceId || cfg.cam || '', micId: at?.getSettings().deviceId || cfg.mic || '', spkId: cfg.spk || '', devices: devCache,
+    } }));
+  }
+  onWsOpen = sendReport;
+  // Big message on screen (sent from the phone remote), e.g. "Back in 5 minutes".
+  let msgTimer;
+  function showMessage(text) {
+    const t = $('toast'); t.textContent = text; t.classList.add('show', 'big');
+    clearTimeout(msgTimer); clearTimeout(toastTimer); msgTimer = setTimeout(() => t.classList.remove('show', 'big'), 12000);
+  }
+  // Commands from the phone remote (remote.html). Each one is the same action as the matching button here.
+  onRemoteCmd = async ({ cmd, arg }) => {
+    try {
+      switch (cmd) {
+        case 'mic': if (!!arg !== micOn) toggleMic(); break;
+        case 'cam': if (!!arg !== camOn) toggleCam(); break;
+        case 'cc': if (!!arg !== cc.iWant) setCaptions(!!arg); break;
+        case 'self': if (!!arg === document.body.classList.contains('no-self')) toggleSelf(); break;
+        case 'theme': setTheme(String(arg || '')); break;
+        case 'wake': wakeFor(30 * 60e3); break;
+        case 'sleep': forceSleep = true; wakeUntil = 0; checkSleep(); break;
+        case 'reconnect': toast('Reconnecting…'); if (pc) { gen++; signal({ reset: true }); rebuild(); } else { closePc(); try { ws?.close(); } catch {} } break;
+        case 'camera': toast('Restarting camera…'); await onTrackEnded(); break;
+        case 'reload': location.reload(); return;
+        case 'volume': remoteVideo.volume = Math.max(0, Math.min(1, Number(arg) / 100)); toast(`Volume ${Math.round(remoteVideo.volume * 100)}%`); break;
+        case 'device-cam': await switchCamera(String(arg)); break;
+        case 'device-mic': await switchMic(String(arg)); break;
+        case 'device-spk': await switchSpeaker(String(arg)); break;
+        case 'orient': setView(String(arg || ''), view.rotate); break;
+        case 'rotate': setView(view.orient, Number(arg) || 0); break;
+        case 'message': if (arg) showMessage(String(arg).slice(0, 140)); break;
+        default: return;
+      }
+    } catch (e) { toast(`Remote: ${e.message || e}`); }
+    setTimeout(sendReport, 600);
+  };
 
   // ---------- Go ----------
   waiting();

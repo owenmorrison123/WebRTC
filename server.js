@@ -74,8 +74,8 @@ function handler(req, res) {
     const now = Date.now();
     const out = { serverUptime: Math.round((now - STARTED) / 1000), rooms: [] };
     for (const [name, room] of rooms) {
-      out.rooms.push({ room: name, peers: [...room.values()].map((p) => ({
-        label: p.label, since: p.joinedAt, online: !p.graceTimer, report: p.report || null, reportAge: p.report ? Math.round((now - p.report.at) / 1000) : null,
+      out.rooms.push({ room: name, peers: [...room.entries()].map(([id, p]) => ({
+        id, label: p.label, since: p.joinedAt, online: !p.graceTimer, report: p.report || null, reportAge: p.report ? Math.round((now - p.report.at) / 1000) : null,
       })) });
     }
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -101,6 +101,9 @@ const server = (process.env.SSL_CERT && process.env.SSL_KEY)
 // ---------- signaling ----------
 // rooms: name -> Map<clientId, { ws, polite, label, graceTimer }>
 const rooms = new Map();
+// remotes: room name -> Set of phone-remote sockets (remote.html) watching that room
+const remotes = new Map();
+const toRemotes = (roomName, msg) => { for (const r of remotes.get(roomName) || []) send(r, msg); };
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 256 * 1024 });
 
 const send = (ws, msg) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); };
@@ -125,6 +128,24 @@ wss.on('connection', (ws, req) => {
   const label = (url.searchParams.get('label') || '').slice(0, 64);
 
   if (!keyOk(url.searchParams.get('key'))) { send(ws, { type: 'error', reason: 'bad-key' }); return ws.close(4001, 'bad key'); }
+
+  // Phone remote: not part of the call. It can send commands to a kiosk in this room and gets its reports.
+  if (url.searchParams.get('role') === 'remote') {
+    if (!remotes.has(roomName)) remotes.set(roomName, new Set());
+    remotes.get(roomName).add(ws);
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
+    ws.on('message', (data) => {
+      let msg; try { msg = JSON.parse(data); } catch { return; }
+      if (msg.type === 'cmd' && typeof msg.cmd === 'string') {
+        const p = rooms.get(roomName)?.get(String(msg.target || ''));
+        if (p) { send(p.ws, { type: 'cmd', cmd: msg.cmd, arg: msg.arg }); log(`[${roomName}] remote → ${p.label || msg.target}: ${msg.cmd}`); }
+        else send(ws, { type: 'error', reason: 'kiosk-offline' });
+      } else if (msg.type === 'ping') send(ws, { type: 'pong' });
+    });
+    ws.on('close', () => { remotes.get(roomName)?.delete(ws); });
+    return;
+  }
   if (!id) return ws.close(4000, 'missing id');
 
   if (!rooms.has(roomName)) rooms.set(roomName, new Map());
@@ -162,7 +183,7 @@ wss.on('connection', (ws, req) => {
     if (msg.type === 'signal') for (const [, p] of others(room, id)) send(p.ws, { type: 'signal', data: msg.data });
     else if (msg.type === 'ping') send(ws, { type: 'pong' }); // lets the page notice a dead connection quickly
     else if (msg.type === 'report' && msg.data && typeof msg.data === 'object') {
-      const me = room.get(id); if (me) me.report = { ...msg.data, at: Date.now() };
+      const me = room.get(id); if (me) { me.report = { ...msg.data, at: Date.now() }; toRemotes(roomName, { type: 'report', id, label: me.label, report: me.report }); }
     }
   });
 

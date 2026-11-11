@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05070a">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Portal remote</title>
+<style>
+  :root { --bg:#05070a; --card:#0d131b; --line:#1d2733; --fg:#e8edf2; --muted:#8a96a3; --accent:#38bdf8; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; padding:16px 14px 40px; }
+  main { max-width:560px; margin:0 auto; }
+  h1 { margin:4px 0 2px; font-size:22px; }
+  h2 { margin:0; font-size:18px; }
+  h3 { margin:18px 0 8px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+  .sub { color:var(--muted); margin:0 0 14px; font-size:14px; }
+  form.key { display:flex; gap:8px; margin:10px 0 16px; }
+  input, select { width:100%; padding:12px; border-radius:10px; border:1px solid #263241; background:#070b10; color:var(--fg); font:inherit; }
+  button { font:inherit; font-weight:600; border:0; border-radius:12px; padding:13px 12px; background:#1a2430; color:var(--fg); cursor:pointer; }
+  button.primary { background:var(--accent); color:#04121c; }
+  button.on { background:var(--accent); color:#04121c; }
+  button.danger { background:#3a1418; color:#fecaca; }
+  button:active { transform:scale(.98); }
+  .kiosk { width:100%; display:flex; align-items:center; gap:12px; text-align:left; padding:14px; margin-bottom:10px; background:var(--card); border:1px solid var(--line); }
+  .dot { width:12px; height:12px; border-radius:50%; flex:none; background:var(--bad); }
+  .dot.ok { background:var(--ok); } .dot.warn { background:var(--warn); } .dot.sleep { background:#64748b; }
+  .kiosk small { display:block; color:var(--muted); font-weight:400; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; }
+  .head { display:flex; align-items:center; gap:10px; }
+  .head .back { padding:8px 12px; }
+  .state { color:var(--muted); font-size:14px; margin:6px 0 0; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  input[type=range] { padding:0; height:36px; }
+  .row { display:flex; gap:8px; }
+  .row input { flex:1; }
+  .note { color:var(--muted); font-size:13px; margin-top:16px; }
+  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:#1a2430; border:1px solid #2a3442; padding:10px 16px; border-radius:12px; opacity:0; transition:opacity .3s; pointer-events:none; max-width:90vw; text-align:center; }
+  #toast.show { opacity:1; }
+  .empty { color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Portal remote</h1>
+  <p class="sub">Fix or adjust a portal screen from your phone, no keyboard or mouse needed. Bookmark this page.</p>
+  <form class="key" id="keyform"><input id="key" placeholder="Room key" autocomplete="off" spellcheck="false"><button class="primary">Go</button></form>
+  <div id="list"></div>
+  <div id="ctl" hidden></div>
+</main>
+<div id="toast"></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+let key = new URLSearchParams(location.search).get('key') || store.get('portal-status-key') || '';
+$('key').value = key;
+let rooms = [], themes = [], sel = null, ws = null, wsRoom = null;   // sel = { room, id }
+const reports = {};   // id -> latest report
+const toast = (m) => { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2200); };
+const dur = (s) => s == null ? '–' : s < 90 ? `${s} s` : s < 5400 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
+
+function stateOf(p) {
+  const r = reports[p.id] || p.report, age = r?.at ? (Date.now() - r.at) / 1000 : 999;
+  if (!p.online || !r || age > 75) return ['bad', 'Offline or not responding'];
+  if (r.sleeping) return ['sleep', 'Sleeping'];
+  if (r.connected) return ['ok', `Live with ${esc(r.peer || 'the other campus')}`];
+  return ['warn', 'Open, waiting for the other campus'];
+}
+
+async function loadStatus() {
+  if (!key) { $('list').innerHTML = '<p class="empty">Enter the room key to see the portal screens.</p>'; return; }
+  try {
+    const r = await fetch(`/status?key=${encodeURIComponent(key)}`, { cache: 'no-store' });
+    if (r.status === 403) { $('list').innerHTML = '<p class="empty">That key doesn’t match.</p>'; return; }
+    rooms = (await r.json()).rooms;
+    for (const room of rooms) for (const p of room.peers) if (p.report && (!reports[p.id] || reports[p.id].at < p.report.at)) reports[p.id] = p.report;
+    // A screen gets a new id each time its page reloads: follow it by name.
+    if (sel) {
+      const room = rooms.find((x) => x.room === sel.room);
+      if (room && !room.peers.some((p) => p.id === sel.id)) { const m = room.peers.find((p) => p.label === sel.label); if (m) sel.id = m.id; }
+    }
+    render();
+  } catch { $('list').innerHTML = '<p class="empty">Can’t reach the portal server right now. Trying again…</p>'; }
+}
+
+function render() {
+  if (sel) return renderCtl();
+  $('ctl').hidden = true; $('list').hidden = false;
+  const items = rooms.flatMap((room) => room.peers.map((p) => ({ room: room.room, p })));
+  $('list').innerHTML = items.length ? items.map(({ room, p }) => {
+    const [cls, txt] = stateOf(p);
+    return `<button class="kiosk" data-room="${esc(room)}" data-id="${esc(p.id)}" data-label="${esc(p.label)}"><span class="dot ${cls}"></span><span>${esc(p.label || 'Unnamed screen')}<small>${txt}</small></span></button>`;
+  }).join('') : '<p class="empty">No portal screens are connected right now. If a screen should be on, check that its computer is on and the portal page is open.</p>';
+  document.querySelectorAll('.kiosk').forEach((b) => (b.onclick = () => { sel = { room: b.dataset.room, id: b.dataset.id, label: b.dataset.label }; connect(sel.room); render(); }));
+}
+
+function connect(room) {
+  if (ws && wsRoom === room && ws.readyState <= 1) return;
+  try { ws?.close(); } catch {}
+  wsRoom = room;
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws?${new URLSearchParams({ room, key, role: 'remote' })}`);
+  ws.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.type === 'report') { reports[m.id] = m.report; if (sel?.id === m.id) renderCtl(); }
+    else if (m.type === 'error' && m.reason === 'kiosk-offline') toast('That screen isn’t connected right now.');
+    else if (m.type === 'error' && m.reason === 'bad-key') toast('Wrong room key.');
+  };
+  ws.onclose = () => { if (sel) setTimeout(() => sel && connect(sel.room), 2000); };
+}
+
+function cmd(c, arg, msg) {
+  if (!ws || ws.readyState !== 1) { toast('Connecting… try again in a second'); connect(sel.room); return; }
+  ws.send(JSON.stringify({ type: 'cmd', target: sel.id, cmd: c, arg }));
+  toast(msg || 'Sent');
+}
+
+function renderCtl() {
+  const room = rooms.find((x) => x.room === sel.room), p = room?.peers.find((x) => x.id === sel.id) || { id: sel.id, online: false };
+  const r = reports[sel.id] || {};
+  const [cls, txt] = stateOf(p);
+  $('list').hidden = true; $('ctl').hidden = false;
+  // Don't redraw while someone is typing a message or using a slider.
+  if ($('ctl').contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName)) { const s = $('st'); if (s) s.innerHTML = `<span class="dot ${cls}" style="display:inline-block;vertical-align:middle"></span> ${txt}`; return; }
+  const dev = (kind) => (r.devices || []).filter((d) => d.kind === kind);
+  const opts = (list, cur) => list.map((d) => `<option value="${esc(d.id)}"${d.id === cur ? ' selected' : ''}>${esc(d.label)}</option>`).join('');
+  const themeOpts = [{ id: '', name: 'Full screen (no frame)' }, ...themes].map((t) => `<option value="${esc(t.id)}"${t.id === (r.themeId || '') ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+  $('ctl').innerHTML = `
+  <div class="panel">
+    <div class="head"><button class="back" id="back">‹ Back</button><h2>${esc(p.label || r.label || 'Portal screen')}</h2></div>
+    <p class="state" id="st"><span class="dot ${cls}" style="display:inline-block;vertical-align:middle"></span> ${txt}${r.fps != null ? ` · ${Math.round(r.fps)} fps` : ''}${r.browser ? ` · ${esc(r.browser)}` : ''}</p>
+
+    <h3>Fix a problem</h3>
+    <div class="grid3">
+      <button data-c="reconnect">Reconnect call</button>
+      <button data-c="camera">Restart camera</button>
+      <button class="danger" data-c="reload">Reload portal</button>
+    </div>
+    <p class="note" style="margin-top:8px">Try them in that order. Reload takes about 10 seconds.</p>
+
+    <h3>Quick controls</h3>
+    <div class="grid">
+      <button data-c="mic" data-a="${r.mic ? 0 : 1}" class="${r.mic ? 'on' : ''}">${r.hasMic === false ? 'No mic found' : r.mic ? 'Mic on' : 'Mic off'}</button>
+      <button data-c="cam" data-a="${r.cam ? 0 : 1}" class="${r.cam ? 'on' : ''}">${r.hasCam === false ? 'No camera found' : r.cam ? 'Camera on' : 'Camera off'}</button>
+      <button data-c="cc" data-a="${r.cc ? 0 : 1}" class="${r.cc ? 'on' : ''}">${r.cc ? 'Captions on' : 'Captions off'}</button>
+      <button data-c="self" data-a="${r.self ? 0 : 1}" class="${r.self ? 'on' : ''}">${r.self ? 'Self-view shown' : 'Self-view hidden'}</button>
+      <button data-c="wake">${r.sleeping ? 'Wake up (30 min)' : 'Stay awake 30 min'}</button>
+      <button data-c="sleep">Sleep now</button>
+    </div>
+
+    <h3>Volume</h3>
+    <input type="range" id="vol" min="0" max="100" step="5" value="${r.volume ?? 100}">
+
+    <h3>Frame</h3>
+    <select id="theme">${themeOpts}</select>
+
+    <h3>Devices</h3>
+    <label>Camera</label><select id="dcam">${opts(dev('videoinput'), r.camId) || '<option>None found</option>'}</select>
+    <label>Microphone</label><select id="dmic">${opts(dev('audioinput'), r.micId) || '<option>None found</option>'}</select>
+    <label>Speaker</label><select id="dspk"><option value="">System default</option>${opts(dev('audiooutput'), r.spkId)}</select>
+
+    <h3>Screen</h3>
+    <div class="grid">
+      <div><label>Orientation</label><select id="orient"><option value="">Auto</option><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></div>
+      <div><label>Rotate picture</label><select id="rotate"><option value="0">None</option><option value="90">90° clockwise</option><option value="270">90° counter-clockwise</option></select></div>
+    </div>
+
+    <h3>Show a message on the screen</h3>
+    <div class="row"><input id="msg" maxlength="140" placeholder="e.g. Back in 5 minutes!"><button class="primary" id="send">Show</button></div>
+
+    <p class="note">Page open for ${dur(r.uptime)} · sleep schedule ${esc(r.sleepSched || '–')} (Evansville time) · version ${esc(r.version || '–')}</p>
+  </div>`;
+  $('orient').value = r.orient || ''; $('rotate').value = String(r.rotate || 0);
+  $('back').onclick = () => { sel = null; render(); };
+  document.querySelectorAll('#ctl [data-c]').forEach((b) => (b.onclick = () => {
+    const c = b.dataset.c, a = b.dataset.a;
+    if (c === 'reload' && !confirm('Reload the portal on this screen? The call drops for about 10 seconds.')) return;
+    cmd(c, a == null ? undefined : a === '1', { reconnect: 'Reconnecting the call…', camera: 'Restarting the camera…', reload: 'Reloading the portal…', wake: 'Waking up…', sleep: 'Going to sleep…' }[c]);
+  }));
+  $('vol').onchange = (e) => cmd('volume', Number(e.target.value), `Volume ${e.target.value}%`);
+  $('theme').onchange = (e) => cmd('theme', e.target.value, 'Frame changed');
+  $('dcam').onchange = (e) => cmd('device-cam', e.target.value, 'Switching camera…');
+  $('dmic').onchange = (e) => cmd('device-mic', e.target.value, 'Switching microphone…');
+  $('dspk').onchange = (e) => cmd('device-spk', e.target.value, 'Switching speaker…');
+  $('orient').onchange = (e) => cmd('orient', e.target.value, 'Orientation changed');
+  $('rotate').onchange = (e) => cmd('rotate', Number(e.target.value), 'Rotation changed');
+  $('send').onclick = () => { const v = $('msg').value.trim(); if (v) { cmd('message', v, 'Message shown'); $('msg').value = ''; $('msg').blur(); } };
+}
+
+$('keyform').onsubmit = (e) => { e.preventDefault(); key = $('key').value.trim(); store.set('portal-status-key', key); loadStatus(); };
+fetch('/themes').then((r) => r.json()).then((t) => { themes = t; }).catch(() => {});
+loadStatus(); setInterval(loadStatus, 8000);
+</script>
+</body>
+</html>

@@ -85,10 +85,12 @@
   #stats b { color:var(--accent); font-weight:600; }
   #toast { position:absolute; left:50%; top:24px; transform:translateX(-50%); padding:10px 16px; border-radius:10px; background:var(--panel); font-weight:600; opacity:0; transition:opacity .3s; pointer-events:none; z-index:6; }
   #toast.show { opacity:1; }
+  #toast.big { top:40%; max-width:80%; padding:18px 28px; font-size:clamp(22px, calc(var(--cw) * 3), 48px); text-align:center; white-space:normal; z-index:8; }
   #settings { position:absolute; right:20px; bottom:90px; width:min(340px, calc(calc(var(--cw) * 100) - 32px)); max-height:calc(calc(var(--ch) * 100) - 120px); overflow:auto; padding:16px; border-radius:14px; background:rgba(10,14,20,.94); border:1px solid #263241; z-index:7; display:none; }
   body.show-settings #settings { display:block; }
   #settings h3 { margin:0 0 8px; font-size:16px; }
   #settings label { display:block; margin-top:10px; font-size:12px; color:var(--muted); }
+  #settings .remote-hint { margin:10px 0 0; font-size:12px; color:var(--muted); } #settings .remote-hint b { color:var(--fg); word-break:break-all; }
   #settings label.chk { display:flex; align-items:center; gap:8px; color:var(--fg); font-size:14px; }
   #settings input[type=time] { display:block; width:100%; margin-top:4px; padding:7px 10px; border-radius:8px; border:1px solid #263241; background:#070b10; color:var(--fg); font:14px system-ui,sans-serif; color-scheme:dark; }
   /* sleep mode */
@@ -323,6 +325,7 @@
   <div id="settings">
     <h3>Settings</h3>
     <label>Theme<select id="p-theme"></select></label>
+    <p class="remote-hint">Phone remote (fix this screen without a keyboard): <b id="p-remote-url"></b></p>
     <label class="chk"><input type="checkbox" id="p-clocks"> Show both clocks</label>
     <label>Caption accent (people speaking at this screen)<select id="p-cclang"><option value="">Auto (this computer’s language)</option><option value="en-US">English – United States</option><option value="en-GB">English – United Kingdom</option><option value="en-IE">English – Ireland</option><option value="en-CA">English – Canada</option><option value="en-AU">English – Australia</option><option value="en-NZ">English – New Zealand</option><option value="en-IN">English – India</option><option value="en-ZA">English – South Africa</option><option value="es-US">Spanish – United States</option><option value="es-ES">Spanish – Spain</option></select></label>
     <label class="chk"><input type="checkbox" id="p-sleep"> Sleep overnight (Evansville time)</label>
