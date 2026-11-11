@@ -288,6 +288,13 @@ Open **`/remote.html`** on the portal site on any phone (for example `https://ca
 
 It needs the room key, like the portal itself. The address is also shown in the portal's **Settings** panel.
 
+**Install it as an app (free, no App Store)**
+
+- **iPhone / iPad (Safari):** open the remote page, tap **Share** (square with an up arrow), then **Add to Home Screen**, then **Add**.
+- **Android (Chrome):** open the remote page, tap the **⋮** menu, then **Add to Home screen** (or **Install app**).
+
+It gets its own "Portal Remote" icon, opens full screen without the browser bar, and remembers the room key. Updates arrive automatically, because it always loads the latest version from the site.
+
 **Checking on it from anywhere**
 
 Open **`/status.html`** on the portal site (for example `https://campus-portal-5m57.onrender.com/status.html`) and enter the room key. It shows each kiosk as live, waiting, sleeping or offline, with frame rate, connection quality, how long the page has been running and when it last checked in.

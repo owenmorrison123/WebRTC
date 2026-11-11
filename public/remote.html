@@ -6,11 +6,17 @@
 <meta name="theme-color" content="#05070a">
 <meta name="color-scheme" content="dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Portal Remote">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/remote.webmanifest">
+<link rel="apple-touch-icon" href="/icons/remote-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/remote-192.png">
 <title>Portal remote</title>
 <style>
   :root { --bg:#05070a; --card:#0d131b; --line:#1d2733; --fg:#e8edf2; --muted:#8a96a3; --accent:#38bdf8; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; padding:16px 14px 40px; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; padding:16px 14px 40px; padding:calc(16px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left)); }
   main { max-width:560px; margin:0 auto; }
   h1 { margin:4px 0 2px; font-size:22px; }
   h2 { margin:0; font-size:18px; }
@@ -46,7 +52,7 @@
 <body>
 <main>
   <h1>Portal remote</h1>
-  <p class="sub">Fix or adjust a portal screen from your phone, no keyboard or mouse needed. Bookmark this page.</p>
+  <p class="sub">Fix or adjust a portal screen from your phone, no keyboard or mouse needed. Tip: add it to your Home Screen to use it like an app.</p>
   <form class="key" id="keyform"><input id="key" placeholder="Room key" autocomplete="off" spellcheck="false"><button class="primary">Go</button></form>
   <div id="list"></div>
   <div id="ctl" hidden></div>
